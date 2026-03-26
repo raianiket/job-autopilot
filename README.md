@@ -9,13 +9,16 @@ Built with **Node.js · TypeScript · Playwright**
 ## How it works
 
 ```
-npm run discover   →   finds jobs → data/jobs.csv
-npm run apply      →   fills forms → you confirm → results.csv
+npm run discover    →   finds jobs → scores with AI → data/jobs.csv
+npm run apply       →   fills forms → you confirm → results.csv
+npm run dashboard   →   opens browser dashboard with stats
 ```
 
-**Discover** searches LinkedIn for every `role × location` combo from your profile, scrolls results, and saves matching jobs to a CSV.
+**Discover** searches LinkedIn for every `role × location` combo from your profile, scrolls results, scores each job against your profile using AI, and saves to a CSV. Jobs are tagged `easy_apply` or `external`.
 
-**Apply** reads that CSV, fills each Easy Apply form with your profile data, and stops at the Submit button — you review and hit `y` to confirm.
+**Apply** reads that CSV, fills each Easy Apply form with your profile data, and stops at the Submit button — you review and hit `y` to confirm. External apply jobs are flagged for manual handling.
+
+**Dashboard** opens a local web UI showing applied/skipped/failed counts and a full results table.
 
 ---
 

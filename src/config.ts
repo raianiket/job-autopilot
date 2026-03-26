@@ -33,6 +33,7 @@ export function loadConfig(configPath?: string): AppConfig {
     phone,
     email,
     claudeModel: parsed.claudeModel ?? "",
+    minJobScore: parsed.minJobScore ?? 0,
     headless: parsed.headless ?? false,
     browserSlowMo: parsed.browserSlowMo ?? 100,
   };

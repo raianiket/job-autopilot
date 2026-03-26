@@ -7,6 +7,7 @@
   "scripts": {
     "discover": "tsx src/discover.ts",
     "apply": "tsx src/index.ts",
+    "dashboard": "tsx src/dashboard.ts",
     "post": "tsx src/post.ts",
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit"

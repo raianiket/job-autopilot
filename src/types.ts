@@ -3,6 +3,9 @@ export interface JobRow {
   company: string;
   job_url: string;
   location: string;
+  apply_type?: "easy_apply" | "external";
+  score?: number;
+  reason?: string;
 }
 
 export interface AppConfig {
@@ -15,6 +18,7 @@ export interface AppConfig {
   phone: string;
   email?: string;
   claudeModel: string;
+  minJobScore: number;
   headless: boolean;
   browserSlowMo: number;
 }

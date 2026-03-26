@@ -8,6 +8,7 @@
   "phone": "+91XXXXXXXXXX",
   "email": "you@example.com",
   "claudeModel": "claude-opus-4-6",
+  "minJobScore": 6,
   "headless": false,
   "browserSlowMo": 100
 }

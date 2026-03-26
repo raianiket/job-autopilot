@@ -502,7 +502,7 @@ export async function processJobs(
         .first();
 
       if (!(await easyApplyButton.count())) {
-        console.log("  Easy Apply not found. Skipping.");
+        console.log("  Easy Apply not found — external application. Apply manually via browser.");
         status = "skipped";
       } else {
         await easyApplyButton.click();

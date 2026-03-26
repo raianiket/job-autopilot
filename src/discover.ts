@@ -3,6 +3,7 @@ import path from "node:path";
 import { createBrowser, createContext, createPage, waitForLinkedInLogin } from "./browser";
 import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
+import { scoreJobs } from "./score";
 import { JobRow } from "./types";
 
 interface CliArgs {
@@ -16,6 +17,7 @@ interface RawJob {
   job_title: string;
   company: string;
   location: string;
+  apply_type: "easy_apply" | "external";
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -56,7 +58,7 @@ function csvEscape(value: string): string {
 
 function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   const resolved = path.resolve(process.cwd(), outFile);
-  const rows = ["job_title,company,job_url,location"];
+  const rows = ["job_title,company,job_url,location,apply_type,score,reason"];
 
   for (const job of jobs) {
     rows.push(
@@ -64,7 +66,10 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
         csvEscape(job.job_title),
         csvEscape(job.company),
         csvEscape(job.job_url),
-        csvEscape(job.location)
+        csvEscape(job.location),
+        csvEscape(job.apply_type ?? ""),
+        csvEscape(String(job.score ?? "")),
+        csvEscape(job.reason ?? ""),
       ].join(",")
     );
   }
@@ -140,7 +145,8 @@ async function extractJobsFromPage(
         text(card && card.querySelector('[class*="location"]')) ||
         text(card && card.querySelector('[class*="metadata"] span')) ||
         'Unknown Location';
-      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location });
+      var easyApply = !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method'));
+      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external' });
     }
     return jobs;
   })()`);
@@ -223,7 +229,8 @@ async function main(): Promise<void> {
           job_title: raw.job_title || "Unknown Title",
           company: raw.company || "Unknown Company",
           job_url,
-          location: raw.location || "Unknown Location"
+          location: raw.location || "Unknown Location",
+          apply_type: raw.apply_type,
         });
 
         if (byUrl.size >= args.maxJobs) {
@@ -233,8 +240,13 @@ async function main(): Promise<void> {
     }
 
     const jobs = Array.from(byUrl.values());
-    writeJobsCsv(args.outFile, jobs);
-    console.log(`\nWrote ${jobs.length} job(s) to ${path.resolve(process.cwd(), args.outFile)}`);
+    const profile = loadProfile(config.profilePath);
+    const finalJobs = await scoreJobs(jobs, profile, config);
+    writeJobsCsv(args.outFile, finalJobs);
+    const easyCount = finalJobs.filter((j) => j.apply_type === "easy_apply").length;
+    const externalCount = finalJobs.filter((j) => j.apply_type === "external").length;
+    console.log(`\nWrote ${finalJobs.length} job(s) to ${path.resolve(process.cwd(), args.outFile)}`);
+    console.log(`  Easy Apply: ${easyCount} | External: ${externalCount} (apply manually)`);
   } finally {
     await context.close();
     await browser.close();

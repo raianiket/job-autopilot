@@ -10,6 +10,8 @@ interface CliArgs {
   config?: string;
   outFile: string;
   maxJobs: number;
+  maxPerRole: number;
+  roles: string[];
 }
 
 interface RawJob {
@@ -19,37 +21,37 @@ interface RawJob {
   location: string;
   apply_type: "easy_apply" | "external";
   posted_at: string;
+  linkedin_score: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let config: string | undefined;
   let outFile = "data/jobs.csv";
-  let maxJobs = 60;
+  let maxJobs = 100;
+  let maxPerRole = 10;
+  const roles: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
-    if (token === "--config" && argv[i + 1]) {
-      config = argv[i + 1];
-      i += 1;
-      continue;
-    }
-
-    if (token === "--out" && argv[i + 1]) {
-      outFile = argv[i + 1];
-      i += 1;
-      continue;
-    }
-
+    if (token === "--config" && argv[i + 1]) { config = argv[i + 1]; i += 1; continue; }
+    if (token === "--out" && argv[i + 1]) { outFile = argv[i + 1]; i += 1; continue; }
     if (token === "--max" && argv[i + 1]) {
       const parsed = Number.parseInt(argv[i + 1], 10);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        maxJobs = parsed;
-      }
-      i += 1;
+      if (!Number.isNaN(parsed) && parsed > 0) maxJobs = parsed;
+      i += 1; continue;
+    }
+    if (token === "--per-role" && argv[i + 1]) {
+      const parsed = Number.parseInt(argv[i + 1], 10);
+      if (!Number.isNaN(parsed) && parsed > 0) maxPerRole = parsed;
+      i += 1; continue;
+    }
+    if (token === "--roles" && argv[i + 1]) {
+      roles.push(...argv[i + 1].split(",").map((r) => r.trim()).filter(Boolean));
+      i += 1; continue;
     }
   }
 
-  return { config, outFile, maxJobs };
+  return { config, outFile, maxJobs, maxPerRole, roles };
 }
 
 function csvEscape(value: string): string {
@@ -59,7 +61,7 @@ function csvEscape(value: string): string {
 
 function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   const resolved = path.resolve(process.cwd(), outFile);
-  const rows = ["job_title,company,job_url,location,apply_type,score,reason,posted_at,fetched_at"];
+  const rows = ["job_title,company,job_url,location,apply_type,role_category,linkedin_score,score,reason,posted_at,fetched_at"];
 
   for (const job of jobs) {
     rows.push(
@@ -69,6 +71,8 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
         csvEscape(job.job_url),
         csvEscape(job.location),
         csvEscape(job.apply_type ?? ""),
+        csvEscape(job.role_category ?? ""),
+        csvEscape(job.linkedin_score ?? ""),
         csvEscape(String(job.score ?? "")),
         csvEscape(job.reason ?? ""),
         csvEscape(job.posted_at ?? ""),
@@ -153,7 +157,10 @@ async function extractJobsFromPage(
         !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method, [class*="easy-apply"], li-icon[type="linkedin-bug"]'));
       var timeEl = card && card.querySelector('time[datetime]');
       var posted_at = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
-      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external', posted_at: posted_at });
+      // LinkedIn shows a match score like "Skills match" or a % badge
+      var matchEl = card && card.querySelector('[class*="match"], [class*="skill-match"], [aria-label*="match" i], [aria-label*="skills" i]');
+      var linkedin_score = matchEl ? (matchEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
+      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external', posted_at: posted_at, linkedin_score: linkedin_score });
     }
     return jobs;
   })()`);
@@ -175,7 +182,6 @@ async function main(): Promise<void> {
     throw new Error("No preferredLocations in profile.json. Add at least one location.");
   }
 
-  const searchUrls = buildSearchUrls(roles, locations);
   const browser = await createBrowser(config.headless, config.browserSlowMo);
   const context = await createContext(browser);
   const page = await createPage(context);
@@ -207,45 +213,63 @@ async function main(): Promise<void> {
     console.log("Login detected. Starting job discovery...\n");
 
     const byUrl = new Map<string, JobRow>();
+    const countPerRole = new Map<string, number>();
 
-    for (const url of searchUrls) {
-      if (byUrl.size >= args.maxJobs) {
-        break;
+    // Filter roles if --roles flag provided
+    const activeRoles = args.roles.length
+      ? roles.filter((r) => args.roles.some((a) => r.toLowerCase().includes(a.toLowerCase())))
+      : roles;
+
+    if (args.roles.length) {
+      console.log(`Running for selected roles: ${activeRoles.join(", ")}\n`);
+    }
+
+    for (const role of activeRoles) {
+      const roleCount = countPerRole.get(role) ?? 0;
+      if (roleCount >= args.maxPerRole) continue;
+
+      for (const location of locations) {
+        if (byUrl.size >= args.maxJobs) break;
+        if ((countPerRole.get(role) ?? 0) >= args.maxPerRole) break;
+
+        const query = new URLSearchParams({ keywords: role, location, sortBy: "DD" });
+        const url = `https://www.linkedin.com/jobs/search/?${query.toString()}`;
+
+        console.log(`[${role}] Searching ${location}...`);
+        await page.goto(url, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(1800);
+        await scrollResults(page);
+
+        const found = await extractJobsFromPage(page);
+        for (const raw of found) {
+          if ((countPerRole.get(role) ?? 0) >= args.maxPerRole) break;
+
+          const job_url = normalizeLinkedInJobUrl(raw.job_url);
+          if (byUrl.has(job_url)) continue;
+
+          const titleLower = (raw.job_title || "").toLowerCase();
+          if (/\b(intern|internship|trainee|fresher|graduate\s+trainee)\b/.test(titleLower)) {
+            console.log(`  Skipping intern role: ${raw.job_title}`);
+            continue;
+          }
+
+          byUrl.set(job_url, {
+            job_title: raw.job_title || "Unknown Title",
+            company: raw.company || "Unknown Company",
+            job_url,
+            location: raw.location || "Unknown Location",
+            apply_type: raw.apply_type,
+            role_category: role,
+            linkedin_score: raw.linkedin_score || "",
+            posted_at: raw.posted_at || "",
+            fetched_at: new Date().toISOString(),
+          });
+
+          countPerRole.set(role, (countPerRole.get(role) ?? 0) + 1);
+        }
       }
 
-      console.log(`Searching: ${url}`);
-      await page.goto(url, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1800);
-      await scrollResults(page);
-
-      const found = await extractJobsFromPage(page);
-      for (const raw of found) {
-        const job_url = normalizeLinkedInJobUrl(raw.job_url);
-        if (byUrl.has(job_url)) {
-          continue;
-        }
-
-        // Skip intern / trainee / fresher roles
-        const titleLower = (raw.job_title || "").toLowerCase();
-        if (/\b(intern|internship|trainee|fresher|graduate\s+trainee)\b/.test(titleLower)) {
-          console.log(`  Skipping intern role: ${raw.job_title}`);
-          continue;
-        }
-
-        byUrl.set(job_url, {
-          job_title: raw.job_title || "Unknown Title",
-          company: raw.company || "Unknown Company",
-          job_url,
-          location: raw.location || "Unknown Location",
-          apply_type: raw.apply_type,
-          posted_at: raw.posted_at || "",
-          fetched_at: new Date().toISOString(),
-        });
-
-        if (byUrl.size >= args.maxJobs) {
-          break;
-        }
-      }
+      console.log(`  → ${countPerRole.get(role) ?? 0} job(s) found for "${role}"`);
     }
 
     const jobs = Array.from(byUrl.values());

@@ -4,6 +4,8 @@ export interface JobRow {
   job_url: string;
   location: string;
   apply_type?: "easy_apply" | "external";
+  role_category?: string;
+  linkedin_score?: string;
   score?: number;
   reason?: string;
   posted_at?: string;

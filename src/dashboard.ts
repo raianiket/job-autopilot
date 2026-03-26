@@ -18,6 +18,8 @@ interface JobRow {
   job_url: string;
   location: string;
   apply_type: string;
+  role_category: string;
+  linkedin_score: string;
   score: string;
   reason: string;
   posted_at: string;
@@ -76,15 +78,17 @@ function readJobs(): JobRow[] {
     headers.forEach((h, i) => { row[h] = fields[i] ?? ""; });
 
     jobs.push({
-      job_title:  row["job_title"]  ?? "",
-      company:    row["company"]    ?? "",
-      job_url:    row["job_url"]    ?? "",
-      location:   row["location"]   ?? "",
-      apply_type: row["apply_type"] ?? "",
-      score:      row["score"]      ?? "",
-      reason:     row["reason"]     ?? "",
-      posted_at:  row["posted_at"]  ?? "",
-      fetched_at: row["fetched_at"] ?? "",
+      job_title:      row["job_title"]      ?? "",
+      company:        row["company"]        ?? "",
+      job_url:        row["job_url"]        ?? "",
+      location:       row["location"]       ?? "",
+      apply_type:     row["apply_type"]     ?? "",
+      role_category:  row["role_category"]  ?? "",
+      linkedin_score: row["linkedin_score"] ?? "",
+      score:          row["score"]          ?? "",
+      reason:         row["reason"]         ?? "",
+      posted_at:      row["posted_at"]      ?? "",
+      fetched_at:     row["fetched_at"]     ?? "",
     });
   }
 
@@ -126,17 +130,30 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     </tr>`;
   }).join("");
 
-  const jobRows = jobs.map((j, i) => {
+  // Sort jobs by AI score desc, then by linkedin_score presence
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const sa = Number(a.score) || 0;
+    const sb = Number(b.score) || 0;
+    if (sb !== sa) return sb - sa;
+    // secondary: linkedin_score present = higher priority
+    return (b.linkedin_score ? 1 : 0) - (a.linkedin_score ? 1 : 0);
+  });
+
+  // Group jobs by role_category
+  const categories = [...new Set(sortedJobs.map((j) => j.role_category || "Other"))];
+
+  const jobRows = sortedJobs.map((j, i) => {
     const result = results.find((r) => r.job_url === j.job_url);
     const statusCell = result
       ? `<span class="badge" style="background:${statusColor(result.status)}">${result.status}</span>`
       : `<span style="color:#475569;font-size:.8rem">pending</span>`;
     return `
-    <tr>
+    <tr class="job-row" data-category="${j.role_category || "Other"}">
       <td>${i + 1}</td>
       <td><a href="${j.job_url}" target="_blank"><strong>${j.job_title}</strong></a><br/><small style="color:#64748b">${j.company}</small></td>
       <td style="color:#94a3b8;font-size:.8rem">${j.location}</td>
       <td>${applyTypeBadge(j.apply_type)}</td>
+      <td>${j.linkedin_score ? `<span style="color:#f59e0b;font-size:.8rem">${j.linkedin_score}</span>` : ""}</td>
       <td>${j.score ? `<strong style="color:#6366f1">${j.score}/10</strong>` : ""}</td>
       <td style="font-size:.75rem;color:#64748b;max-width:200px">${j.reason}</td>
       <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${j.posted_at ? new Date(j.posted_at).toLocaleDateString() : ""}</td>
@@ -171,6 +188,11 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     a { color: #60a5fa; text-decoration: none; } a:hover { text-decoration: underline; }
     .empty { text-align: center; padding: 3rem; color: #475569; }
     small { color: #64748b; }
+    .cats { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .cat { background: #1e293b; border: 1px solid #334155; border-radius: .5rem; padding: .4rem .9rem; font-size: .8rem; cursor: pointer; color: #94a3b8; }
+    .cat.active { background: #6366f1; border-color: #6366f1; color: #fff; font-weight: 600; }
+    .job-row { display: none; }
+    .job-row.visible { display: table-row; }
   </style>
 </head>
 <body>
@@ -197,10 +219,25 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
   <h2>Discovered Jobs (${jobs.length})</h2>
   ${jobs.length === 0
     ? `<div class="empty">No jobs yet. Run <code>npm run discover</code> first.</div>`
-    : `<table>
-    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>Score</th><th>Reason</th><th>Posted</th><th>Fetched</th><th>Status</th></tr></thead>
+    : `
+  <div class="cats">
+    <div class="cat active" onclick="filterCat('all', this)">All (${jobs.length})</div>
+    ${categories.map((c) => `<div class="cat" onclick="filterCat('${c}', this)">${c} (${sortedJobs.filter((j) => (j.role_category || "Other") === c).length})</div>`).join("")}
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>LinkedIn</th><th>AI Score</th><th>Reason</th><th>Posted</th><th>Fetched</th><th>Status</th></tr></thead>
     <tbody>${jobRows}</tbody>
-  </table>`}
+  </table>
+  <script>
+    function filterCat(cat, el) {
+      document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      document.querySelectorAll('.job-row').forEach(r => {
+        r.classList.toggle('visible', cat === 'all' || r.dataset.category === cat);
+      });
+    }
+    document.querySelectorAll('.job-row').forEach(r => r.classList.add('visible'));
+  </script>`}
 
 </body>
 </html>`;

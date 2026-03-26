@@ -5,7 +5,8 @@ results.csv
 
 # Personal config & data — copy the .example files and fill in your details
 config.json
-data/
+data/*
+!data/.gitkeep
 .env
 
 # Local tooling — never commit

@@ -34,14 +34,14 @@ Only `phone` is required. Everything else has sensible defaults.
 
 **2. Add your files to `data/`**
 
-| File | What it is |
-|---|---|
-| `resume.pdf` | Uploaded to every application |
-| `profile.json` | Your details — name, roles, locations, cover letter, etc. |
-
 ```bash
 cp data/profile.example.json data/profile.json
 ```
+
+| File | What it is |
+|---|---|
+| `data/resume.pdf` | Your resume — uploaded to every application |
+| `data/profile.json` | Your details — name, roles, locations, cover letter, etc. |
 
 ---
 

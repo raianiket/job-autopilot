@@ -145,7 +145,9 @@ async function extractJobsFromPage(
         text(card && card.querySelector('[class*="location"]')) ||
         text(card && card.querySelector('[class*="metadata"] span')) ||
         'Unknown Location';
-      var easyApply = !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method'));
+      var cardText = card ? (card.textContent || '') : '';
+      var easyApply = /easy apply/i.test(cardText) ||
+        !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method, [class*="easy-apply"], li-icon[type="linkedin-bug"]'));
       jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external' });
     }
     return jobs;

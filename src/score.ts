@@ -19,7 +19,9 @@ export async function scoreJobs(
     profile?.preferredRoles?.length ? `Target roles: ${profile.preferredRoles.join(", ")}` : null,
     profile?.yearsOfExperience != null ? `Experience: ${profile.yearsOfExperience} years` : null,
     profile?.headline ? `Headline: ${profile.headline}` : null,
+    profile?.skills?.length ? `Skills: ${profile.skills.join(", ")}` : null,
     profile?.workAuthorization ? `Work authorization: ${profile.workAuthorization}` : null,
+    profile?.expectedSalary ? `Expected salary: ${profile.expectedSalary}` : null,
     profile?.preferredLocations?.length
       ? `Preferred locations: ${profile.preferredLocations.join(", ")}`
       : null,

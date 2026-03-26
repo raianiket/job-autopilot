@@ -43,6 +43,7 @@ export interface CandidateProfile {
   website?: string;
   expectedSalary?: string;
   noticePeriodDays?: number;
+  skills?: string[];
   workAuthorization?: string;
   requiresSponsorship?: boolean;
   coverLetter?: string;

@@ -4,6 +4,7 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { BrowserContext, Page } from "playwright";
 import { createPage } from "./browser";
+import { getSupabaseClient } from "./supabase";
 import { AppConfig, ApplyResult, ApplyStatus, CandidateProfile, JobRow } from "./types";
 
 const RESULTS_CSV = path.resolve(process.cwd(), "results.csv");
@@ -516,8 +517,23 @@ export async function processJobs(
     }
 
     // Always record the result and clean up the page regardless of what happened above.
-    writeResult({ job_url: job.job_url, status, timestamp: nowIso() });
+    const timestamp = nowIso();
+    writeResult({ job_url: job.job_url, status, timestamp });
     console.log(`  Status: ${status}`);
+
+    // Sync to Supabase if configured (optional — set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in .env)
+    const sb = getSupabaseClient();
+    if (sb) {
+      const { error } = await sb.from("job_results").insert({
+        job_url: job.job_url,
+        job_title: job.job_title,
+        company: job.company,
+        apply_type: job.apply_type ?? null,
+        score: job.score ?? null,
+        status,
+      });
+      if (error) console.warn("  Supabase sync failed:", error.message);
+    }
 
     let response = "";
     try {

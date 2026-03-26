@@ -1,0 +1,23 @@
+{
+  "preferredRoles": ["Senior Software Engineer", "Full Stack Engineer"],
+  "preferredLocations": ["Remote", "Hyderabad"],
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "fullName": "Jane Doe",
+  "headline": "Senior Software Engineer | Node.js · TypeScript · AWS",
+  "currentTitle": "Senior Software Engineer",
+  "currentCompany": "Acme Corp",
+  "yearsOfExperience": 5,
+  "city": "Hyderabad",
+  "location": "Hyderabad, India",
+  "phone": "+91XXXXXXXXXX",
+  "email": "you@example.com",
+  "linkedinUrl": "https://www.linkedin.com/in/your-profile/",
+  "portfolioUrl": "https://yoursite.com",
+  "githubUrl": "https://github.com/yourusername",
+  "workAuthorization": "Authorized to work in India",
+  "requiresSponsorship": false,
+  "noticePeriod": "30 days",
+  "expectedSalary": "",
+  "coverLetter": "Dear Hiring Team,\n\nI am a Senior Software Engineer with 5+ years of experience...\n\nBest regards,\nJane Doe"
+}

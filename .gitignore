@@ -7,6 +7,7 @@ results.csv
 config.json
 data/*
 !data/.gitkeep
+!data/profile.example.json
 .env
 
 # Local tooling — never commit

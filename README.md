@@ -39,15 +39,8 @@ Only `phone` is required. Everything else has sensible defaults.
 | `resume.pdf` | Uploaded to every application |
 | `profile.json` | Your details — name, roles, locations, cover letter, etc. |
 
-**3. `data/profile.json` minimum:**
-```json
-{
-  "preferredRoles": ["Senior Software Engineer"],
-  "preferredLocations": ["Remote", "Hyderabad"],
-  "firstName": "Your Name",
-  "fullName": "Your Full Name",
-  "coverLetter": "Dear Hiring Team, ..."
-}
+```bash
+cp data/profile.example.json data/profile.json
 ```
 
 ---

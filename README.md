@@ -51,20 +51,23 @@ cp data/profile.example.json data/profile.json
 ## Run
 
 ```bash
-# Step 1 — find jobs
+# Step 1 — find jobs (scores each job with AI if claudeModel is set)
 npm run discover
 
-# Review data/jobs.csv, remove anything you don't want
+# Review data/jobs.csv — remove anything you don't want to apply to
 
 # Step 2 — apply
 npm run apply
+
+# Step 3 — track results (opens http://localhost:3000)
+npm run dashboard
 ```
 
 ---
 
 ## Results
 
-Every attempt is logged to `results.csv`:
+Every attempt is logged to `results.csv` and shown in the dashboard:
 
 | Status | Meaning |
 |---|---|
@@ -73,6 +76,19 @@ Every attempt is logged to `results.csv`:
 | `failed` | Error — retried on next run |
 
 Applied jobs are never retried. Failed/skipped ones are.
+
+---
+
+## Optional: AI scoring + real-time dashboard
+
+Set these in a `.env` file (copy from `.env.example`):
+
+| Variable | What it enables |
+|---|---|
+| `ANTHROPIC_API_KEY` | AI scores each job 1–10 against your profile during discover |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | Syncs results to Supabase so the dashboard updates live |
+
+Everything works without these — they're purely optional upgrades.
 
 ---
 

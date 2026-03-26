@@ -1,0 +1,15 @@
+node_modules/
+dist/
+results.csv
+.playwright/
+
+# Personal config & data — copy the .example files and fill in your details
+config.json
+data/
+.env
+
+# Local tooling — never commit
+.mcp.json
+.claude/
+.DS_Store
+ResumeDetail/

@@ -1,0 +1,13 @@
+{
+  "maxApplicationsPerRun": 15,
+  "delayBetweenJobsSeconds": 30,
+  "resumePath": "./data/resume.pdf",
+  "profilePath": "./data/profile.json",
+  "maxFormSteps": 8,
+  "autoSkipUnansweredRequired": true,
+  "phone": "+91XXXXXXXXXX",
+  "email": "you@example.com",
+  "claudeModel": "claude-opus-4-6",
+  "headless": false,
+  "browserSlowMo": 100
+}

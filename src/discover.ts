@@ -18,6 +18,7 @@ interface RawJob {
   company: string;
   location: string;
   apply_type: "easy_apply" | "external";
+  posted_at: string;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -58,7 +59,7 @@ function csvEscape(value: string): string {
 
 function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   const resolved = path.resolve(process.cwd(), outFile);
-  const rows = ["job_title,company,job_url,location,apply_type,score,reason"];
+  const rows = ["job_title,company,job_url,location,apply_type,score,reason,posted_at,fetched_at"];
 
   for (const job of jobs) {
     rows.push(
@@ -70,6 +71,8 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
         csvEscape(job.apply_type ?? ""),
         csvEscape(String(job.score ?? "")),
         csvEscape(job.reason ?? ""),
+        csvEscape(job.posted_at ?? ""),
+        csvEscape(job.fetched_at ?? ""),
       ].join(",")
     );
   }
@@ -148,7 +151,9 @@ async function extractJobsFromPage(
       var cardText = card ? (card.textContent || '') : '';
       var easyApply = /easy apply/i.test(cardText) ||
         !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method, [class*="easy-apply"], li-icon[type="linkedin-bug"]'));
-      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external' });
+      var timeEl = card && card.querySelector('time[datetime]');
+      var posted_at = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
+      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external', posted_at: posted_at });
     }
     return jobs;
   })()`);
@@ -233,6 +238,8 @@ async function main(): Promise<void> {
           job_url,
           location: raw.location || "Unknown Location",
           apply_type: raw.apply_type,
+          posted_at: raw.posted_at || "",
+          fetched_at: new Date().toISOString(),
         });
 
         if (byUrl.size >= args.maxJobs) {

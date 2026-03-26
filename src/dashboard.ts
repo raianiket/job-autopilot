@@ -20,6 +20,8 @@ interface JobRow {
   apply_type: string;
   score: string;
   reason: string;
+  posted_at: string;
+  fetched_at: string;
 }
 
 function unquote(val: string): string {
@@ -81,6 +83,8 @@ function readJobs(): JobRow[] {
       apply_type: row["apply_type"] ?? "",
       score:      row["score"]      ?? "",
       reason:     row["reason"]     ?? "",
+      posted_at:  row["posted_at"]  ?? "",
+      fetched_at: row["fetched_at"] ?? "",
     });
   }
 
@@ -135,6 +139,8 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
       <td>${applyTypeBadge(j.apply_type)}</td>
       <td>${j.score ? `<strong style="color:#6366f1">${j.score}/10</strong>` : ""}</td>
       <td style="font-size:.75rem;color:#64748b;max-width:200px">${j.reason}</td>
+      <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${j.posted_at ? new Date(j.posted_at).toLocaleDateString() : ""}</td>
+      <td style="font-size:.75rem;color:#475569;white-space:nowrap">${j.fetched_at ? new Date(j.fetched_at).toLocaleDateString() : ""}</td>
       <td>${statusCell}</td>
     </tr>`;
   }).join("");
@@ -192,7 +198,7 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
   ${jobs.length === 0
     ? `<div class="empty">No jobs yet. Run <code>npm run discover</code> first.</div>`
     : `<table>
-    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>Score</th><th>Reason</th><th>Status</th></tr></thead>
+    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>Score</th><th>Reason</th><th>Posted</th><th>Fetched</th><th>Status</th></tr></thead>
     <tbody>${jobRows}</tbody>
   </table>`}
 

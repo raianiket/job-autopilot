@@ -6,6 +6,8 @@ export interface JobRow {
   apply_type?: "easy_apply" | "external";
   score?: number;
   reason?: string;
+  posted_at?: string;
+  fetched_at?: string;
 }
 
 export interface AppConfig {

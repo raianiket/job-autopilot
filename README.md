@@ -1,95 +1,84 @@
-# LinkedIn Auto Apply
+# job-autopilot
 
-A local Node.js + TypeScript + Playwright tool that automates LinkedIn Easy Apply — with you staying in control of every final submission.
+Automates LinkedIn Easy Apply — discovers jobs matching your roles and locations, fills forms from your profile, and lets you confirm every submission manually.
+
+Built with Node.js, TypeScript, and Playwright.
 
 ---
 
 ## How It Works
 
-The tool has two phases:
+Two phases:
 
-### Phase 1 — Discover (`npm run discover`)
+### Phase 1 — Discover
+Searches LinkedIn Jobs for every combination of your `preferredRoles` × `preferredLocations`, scrolls results to load more listings, and writes unique jobs to `data/jobs.csv`.
 
-1. Opens a Chromium browser and navigates to the LinkedIn login page.
-2. Pre-fills your email from config. You complete the login manually in the browser.
-3. Searches LinkedIn Jobs for every combination of your `preferredRoles` × `preferredLocations`.
-4. Scrolls each results page to load more listings, then extracts job title, company, location, and URL.
-5. Writes up to `--max` (default 60) unique jobs to `data/jobs.csv`.
+### Phase 2 — Apply
+Reads `data/jobs.csv`, filters by role, sorts by location priority, and for each job:
+- Clicks Easy Apply
+- Uploads your resume
+- Fills form fields from `profile.json` (name, phone, email, experience, cover letter, etc.)
+- Answers the sponsorship question automatically
+- Skips jobs with unanswered required fields (configurable)
+- **Stops at the Submit button — you review and confirm manually**
+- Logs every result to `results.csv`
 
-### Phase 2 — Apply (`npm run apply`)
-
-1. Opens a Chromium browser and waits for you to log in to LinkedIn (same login flow as Discover).
-2. Reads `data/jobs.csv`, removes duplicate URLs, filters by `preferredRoles`, then sorts by `preferredLocations` priority.
-3. Skips any job that already has status `applied` in `results.csv` from a previous run.
-4. For each job (up to `maxApplicationsPerRun`):
-   - Navigates to the job URL in the **same browser session** (so LinkedIn sees you as logged in).
-   - Clicks "Easy Apply". If the button is not found, marks the job as `skipped`.
-   - Runs the form-filling loop (up to `maxFormSteps` steps):
-     - Uploads `resume.pdf` if a file input is present.
-     - Fills phone and email from config.
-     - Auto-fills profile fields (name, headline, company, years of experience, LinkedIn URL, etc.) by matching form field names/IDs/placeholders against known keywords.
-     - Answers the sponsorship Yes/No question if found.
-     - Counts unanswered required fields. If any remain and `autoSkipUnansweredRequired` is `true`, marks the job as `skipped`.
-     - Otherwise clicks the Next / Review / Continue button to advance.
-   - When the Submit button appears, **you confirm the submission manually** (`y` to mark as applied).
-5. Appends the result (`applied` / `skipped` / `failed`) and timestamp to `results.csv`.
-6. Prompts you to press Enter for the next job, or type `q` to stop early.
-7. Waits `delayBetweenJobsSeconds` before opening the next job.
+Jobs already marked `applied` are skipped on subsequent runs. Jobs marked `failed` or `skipped` are retried.
 
 ---
 
 ## Setup
 
-### Requirements
-
-- Node.js 18+
-- npm
-
-### Install
+**Requirements:** Node.js 18+, npm
 
 ```bash
 npm install
 npx playwright install chromium
 ```
 
-### Configure
+---
 
-**1. `config.json`** — runtime settings:
+## Configuration
+
+### 1. `config.json`
+
+Copy `config.example.json` and fill in your details:
 
 ```json
 {
-  "maxApplicationsPerRun": 15,
-  "delayBetweenJobsSeconds": 30,
-  "resumePath": "./data/resume.pdf",
-  "profilePath": "./data/profile.json",
-  "maxFormSteps": 8,
-  "autoSkipUnansweredRequired": true,
   "phone": "+91XXXXXXXXXX",
   "email": "you@example.com"
 }
 ```
 
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `maxApplicationsPerRun` | no | `15` | Max jobs to attempt per run (≥ 1) |
-| `delayBetweenJobsSeconds` | no | `30` | Wait between jobs in seconds (≥ 0) |
-| `resumePath` | no | `./data/resume.pdf` | Path to your resume PDF |
-| `profilePath` | no | `./data/profile.json` | Path to your profile JSON |
-| `maxFormSteps` | no | `8` | Max form pages to navigate before giving up (≥ 1) |
-| `autoSkipUnansweredRequired` | no | `true` | Auto-skip jobs that have required fields the tool cannot fill |
-| `phone` | **yes** | — | Your phone number (or set `LINKEDIN_PHONE` env var) |
-| `email` | no | `""` | Your email (or set `LINKEDIN_EMAIL` env var) |
+All other fields have defaults. Only `phone` is required.
 
-> **Tip:** To avoid committing credentials, use environment variables instead of putting them in `config.json`:
+| Field | Default | Description |
+|---|---|---|
+| `phone` | — | **Required.** Your phone number |
+| `email` | `""` | Your email address |
+| `resumePath` | `./data/resume.pdf` | Path to your resume PDF |
+| `profilePath` | `./data/profile.json` | Path to your profile JSON |
+| `maxApplicationsPerRun` | `15` | Max jobs to attempt per run |
+| `delayBetweenJobsSeconds` | `30` | Wait between jobs (seconds) |
+| `maxFormSteps` | `8` | Max form steps before giving up |
+| `autoSkipUnansweredRequired` | `true` | Skip jobs with unfillable required fields |
+| `headless` | `false` | Run browser in headless mode |
+| `browserSlowMo` | `100` | Slow down browser actions (ms) |
+| `claudeModel` | `""` | AI model for post generation (e.g. `claude-opus-4-6`) |
+
+> Credentials can also be set via env vars to avoid storing them in a file:
 > ```bash
 > LINKEDIN_PHONE='+91XXXXXXXXXX' LINKEDIN_EMAIL='you@example.com' npm run apply
 > ```
 
-**2. `data/profile.json`** — your reusable candidate profile:
+### 2. `data/profile.json`
+
+Your candidate profile — used to fill form fields and filter/sort jobs.
 
 ```json
 {
-  "preferredRoles": ["Senior Software Engineer", "Full Stack Engineer", "Backend Engineer"],
+  "preferredRoles": ["Senior Software Engineer", "Backend Engineer"],
   "preferredLocations": ["Remote", "Hybrid", "Hyderabad"],
   "firstName": "Your First Name",
   "lastName": "Your Last Name",
@@ -101,35 +90,39 @@ npx playwright install chromium
   "city": "Hyderabad",
   "location": "Hyderabad, Telangana",
   "linkedinUrl": "https://www.linkedin.com/in/yourprofile/",
+  "portfolioUrl": "https://yourportfolio.com",
+  "githubUrl": "https://github.com/yourusername",
   "workAuthorization": "Authorized to work in India",
   "requiresSponsorship": false,
   "expectedSalary": "25 LPA",
   "noticePeriodDays": 30,
-  "additionalInfo": "Brief summary or cover letter text."
+  "coverLetter": "Dear Hiring Team, ..."
 }
 ```
 
 | Field | Purpose |
 |---|---|
-| `preferredRoles` | Used by Discover to build search queries, and by Apply to filter jobs |
-| `preferredLocations` | Used by Discover for search + Apply for ordering (first = highest priority) |
-| `firstName`, `lastName`, `fullName` | Filled into name fields |
-| `headline`, `currentTitle` | Filled into title/headline fields |
-| `currentCompany` | Filled into employer/company fields |
-| `yearsOfExperience` | Filled into experience fields |
-| `city`, `location` | Filled into location fields |
-| `linkedinUrl`, `portfolioUrl`, `githubUrl`, `website` | Filled into respective URL fields |
-| `expectedSalary` | Filled into salary/compensation fields |
-| `noticePeriodDays` | Filled into notice period fields |
-| `workAuthorization` | Filled into work authorization/visa fields |
+| `preferredRoles` | Discover search queries + Apply role filter |
+| `preferredLocations` | Discover search + Apply sort order (first = highest priority) |
+| `firstName`, `lastName`, `fullName` | Name fields |
+| `headline`, `currentTitle` | Title / headline fields |
+| `currentCompany` | Employer / company fields |
+| `yearsOfExperience` | Experience fields |
+| `city`, `location` | Location fields |
+| `linkedinUrl`, `portfolioUrl`, `githubUrl`, `website` | URL fields |
+| `expectedSalary` | Salary / compensation fields |
+| `noticePeriodDays` | Notice period fields |
+| `workAuthorization` | Work authorization / visa fields |
 | `requiresSponsorship` | Answers the sponsorship Yes/No question |
-| `additionalInfo` | Filled into cover letter / additional info / summary fields |
+| `coverLetter` | Cover letter / additional info / message fields |
 
-**3. `data/resume.pdf`** — your resume. The tool uploads it to any file input it finds on the form.
+### 3. `data/resume.pdf`
+
+Your resume. Uploaded to any file input found on the form.
 
 ---
 
-## Running
+## Usage
 
 ### Step 1 — Discover jobs
 
@@ -138,16 +131,13 @@ npm run discover
 ```
 
 Options:
-- `--out <path>` — output CSV path (default: `data/jobs.csv`)
-- `--max <n>` — max jobs to collect (default: `60`)
-- `--config <path>` — alternate config file
+| Flag | Default | Description |
+|---|---|---|
+| `--max <n>` | `60` | Max jobs to collect |
+| `--out <path>` | `data/jobs.csv` | Output CSV path |
+| `--config <path>` | `config.json` | Alternate config file |
 
-With password pre-fill (password never saved to disk):
-```bash
-LINKEDIN_PASSWORD='your-password' npm run discover
-```
-
-> After running, review `data/jobs.csv` and remove any jobs you do not want to apply to before running the apply step.
+> Review `data/jobs.csv` after discovery and remove any jobs you don't want to apply to.
 
 ### Step 2 — Apply
 
@@ -156,14 +146,24 @@ npm run apply
 ```
 
 Options:
-- `--file <path>` — jobs CSV path (default: `data/jobs.csv`)
-- `--config <path>` — alternate config file
+| Flag | Default | Description |
+|---|---|---|
+| `--file <path>` | `data/jobs.csv` | Jobs CSV to process |
+| `--config <path>` | `config.json` | Alternate config file |
+
+### Optional — Generate a LinkedIn post
+
+```bash
+npm run post
+```
+
+Uses Claude (requires `ANTHROPIC_API_KEY` and `claudeModel` in config) to write and publish a LinkedIn post. Supports `--content`, `--content-file`, `--image`, and `--yes` flags.
 
 ---
 
 ## Results
 
-Each application attempt is logged to `results.csv` in the project root:
+Logged to `results.csv`:
 
 ```
 job_url,status,timestamp
@@ -173,20 +173,18 @@ https://www.linkedin.com/jobs/view/456,skipped,2026-03-15T10:05:00.000Z
 
 | Status | Meaning |
 |---|---|
-| `applied` | You manually confirmed submission |
-| `skipped` | Easy Apply not found, required fields unanswered, or you chose to skip |
-| `failed` | An unexpected error occurred (will be retried on next run) |
-
-On subsequent runs, jobs with status `applied` are automatically skipped. Jobs with status `failed` or `skipped` are retried.
+| `applied` | You confirmed the submission |
+| `skipped` | Easy Apply not found, unfillable required fields, or manually skipped |
+| `failed` | Unexpected error — retried on next run |
 
 ---
 
 ## Safety
 
-- **Final submission is always manual.** The tool never clicks Submit on your behalf — it stops and asks you to review and submit, then confirm with `y`.
-- The browser runs in **headed mode** (visible) so you can see exactly what is happening at every step.
-- Type `q` at any prompt to stop the run immediately.
-- `autoSkipUnansweredRequired: true` protects you from accidentally submitting incomplete forms.
+- **Final submission is always manual** — the tool stops at the Submit button and asks you to confirm with `y`
+- Browser runs **headed** (visible) by default so you can see every action
+- Type `q` at any prompt to stop immediately
+- `autoSkipUnansweredRequired: true` prevents submitting incomplete forms
 
 ---
 

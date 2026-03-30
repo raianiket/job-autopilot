@@ -16,6 +16,7 @@ export interface AppConfig {
   maxApplicationsPerRun: number;
   delayBetweenJobsSeconds: number;
   resumePath: string;
+  coverLetterPath?: string;
   profilePath: string;
   maxFormSteps: number;
   autoSkipUnansweredRequired: boolean;
@@ -44,10 +45,13 @@ export interface CandidateProfile {
   githubUrl?: string;
   website?: string;
   expectedSalary?: string;
-  noticePeriodDays?: number;
+  noticePeriod?: string;
   skills?: string[];
   workAuthorization?: string;
   requiresSponsorship?: boolean;
+  gender?: string;
+  veteran?: boolean;
+  disability?: boolean;
   coverLetter?: string;
   email?: string;
 }

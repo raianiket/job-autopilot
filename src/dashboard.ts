@@ -3,8 +3,9 @@ import http from "node:http";
 import path from "node:path";
 import { exec } from "node:child_process";
 
-const RESULTS_CSV = path.resolve(process.cwd(), "results.csv");
-const JOBS_CSV    = path.resolve(process.cwd(), "data/jobs.csv");
+const RESULTS_CSV   = path.resolve(process.cwd(), "results.csv");
+const JOBS_HISTORY  = path.resolve(process.cwd(), "data/jobs_history.csv");
+const JOBS_CSV      = path.resolve(process.cwd(), "data/jobs.csv");
 
 interface ResultRow {
   job_url: string;
@@ -52,9 +53,11 @@ function readResults(): ResultRow[] {
 }
 
 function readJobs(): JobRow[] {
-  if (!fs.existsSync(JOBS_CSV)) return [];
+  // Prefer history file (accumulates across discover runs) over current jobs.csv
+  const jobsFile = fs.existsSync(JOBS_HISTORY) ? JOBS_HISTORY : JOBS_CSV;
+  if (!fs.existsSync(jobsFile)) return [];
 
-  const lines = fs.readFileSync(JOBS_CSV, "utf-8").split("\n");
+  const lines = fs.readFileSync(jobsFile, "utf-8").split("\n");
   if (lines.length < 2) return [];
 
   const headers = lines[0].split(",").map((h) => unquote(h));

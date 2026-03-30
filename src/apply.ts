@@ -983,6 +983,14 @@ export async function processJobs(
     try {
       await page.goto(job.job_url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
+      // Dismiss LinkedIn Premium upsell modal/sidebar if it appears
+      const premiumClose = page.locator(
+        "button[aria-label*='Dismiss' i], button[aria-label*='Close' i], " +
+        ".premium-upsell-link__close, .artdeco-dismissible__dismiss, " +
+        "[data-test-modal-close-btn]"
+      ).first();
+      await premiumClose.click({ timeout: 3000 }).catch(() => {});
+
       // Easy Apply can be an <a> or <button> depending on LinkedIn's page version
       // Buttons only (not links) to avoid clicking sidebar job card "Easy Apply" badges
       const easyApplyBtn = page.locator(

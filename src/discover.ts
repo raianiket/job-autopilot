@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createBrowser, createContext, createPage, waitForLinkedInLogin } from "./browser";
+import { createBrowser, createContext, createPage, waitForLinkedInLogin, isSessionValid, saveSession } from "./browser";
 import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
 import { scoreJobs } from "./score";
@@ -82,6 +82,31 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   }
 
   fs.writeFileSync(resolved, `${rows.join("\n")}\n`, "utf-8");
+
+  // Also upsert into persistent history so the dashboard never loses job details
+  const historyFile = path.resolve(path.dirname(resolved), "jobs_history.csv");
+  const existingUrls = new Set<string>();
+  const header = rows[0];
+  if (fs.existsSync(historyFile)) {
+    const existing = fs.readFileSync(historyFile, "utf-8").split("\n").slice(1);
+    for (const line of existing) {
+      if (!line.trim()) continue;
+      // Extract URL (3rd field, index 2) — fields are all quoted
+      const parts = line.match(/"(?:[^"]|"")*"/g) ?? [];
+      if (parts[2]) existingUrls.add(parts[2].replace(/^"|"$/g, ""));
+    }
+  }
+  const newRows = rows.slice(1).filter((r) => {
+    const parts = r.match(/"(?:[^"]|"")*"/g) ?? [];
+    const url = parts[2]?.replace(/^"|"$/g, "") ?? "";
+    return url && !existingUrls.has(url);
+  });
+  if (!fs.existsSync(historyFile)) {
+    fs.writeFileSync(historyFile, `${header}\n`, "utf-8");
+  }
+  if (newRows.length > 0) {
+    fs.appendFileSync(historyFile, `${newRows.join("\n")}\n`, "utf-8");
+  }
 }
 
 function normalizeLinkedInJobUrl(url: string): string {
@@ -92,22 +117,6 @@ function normalizeLinkedInJobUrl(url: string): string {
   return clean;
 }
 
-function buildSearchUrls(roles: string[], locations: string[]): string[] {
-  const deduped = new Set<string>();
-
-  for (const role of roles) {
-    for (const location of locations) {
-      const query = new URLSearchParams({
-        keywords: role,
-        location,
-        sortBy: "DD"
-      });
-      deduped.add(`https://www.linkedin.com/jobs/search/?${query.toString()}`);
-    }
-  }
-
-  return Array.from(deduped);
-}
 
 async function scrollResults(page: Awaited<ReturnType<typeof createPage>>): Promise<void> {
   for (let i = 0; i < 6; i += 1) {
@@ -187,29 +196,35 @@ async function main(): Promise<void> {
   const page = await createPage(context);
 
   try {
-    console.log("Opening LinkedIn login page...");
-    await page.goto("https://www.linkedin.com/login", { waitUntil: "domcontentloaded" });
+    if (!isSessionValid()) {
+      console.log("Opening LinkedIn login page...");
+      await page.goto("https://www.linkedin.com/login", { waitUntil: "networkidle" });
 
-    if (config.email) {
-      const emailInput = page.locator('input[name="session_key"], input#username').first();
-      if (await emailInput.count()) {
-        await emailInput.fill(config.email);
-        console.log(`Pre-filled email: ${config.email}`);
+      if (config.email) {
+        const emailInput = page.locator('input[name="session_key"], input#username').first();
+        await emailInput.waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+        if (await emailInput.count()) {
+          await emailInput.fill(config.email);
+          console.log(`Pre-filled email: ${config.email}`);
+        }
       }
+
+      if (process.env.LINKEDIN_PASSWORD) {
+        const passwordInput = page
+          .locator('input[name="session_password"], input#password')
+          .first();
+        await passwordInput.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+        if (await passwordInput.count()) {
+          await passwordInput.fill(process.env.LINKEDIN_PASSWORD);
+          console.log("Pre-filled password from LINKEDIN_PASSWORD env var.");
+        }
+      }
+
+      console.log("Complete the login in the browser. Waiting up to 15 minutes...");
+      await waitForLinkedInLogin(page);
+      await saveSession(context);
     }
 
-    if (process.env.LINKEDIN_PASSWORD) {
-      const passwordInput = page
-        .locator('input[name="session_password"], input#password')
-        .first();
-      if (await passwordInput.count()) {
-        await passwordInput.fill(process.env.LINKEDIN_PASSWORD);
-        console.log("Pre-filled password from LINKEDIN_PASSWORD env var.");
-      }
-    }
-
-    console.log("Complete the login in the browser. Waiting up to 15 minutes...");
-    await waitForLinkedInLogin(page);
     console.log("Login detected. Starting job discovery...\n");
 
     const byUrl = new Map<string, JobRow>();
@@ -227,6 +242,8 @@ async function main(): Promise<void> {
     for (const role of activeRoles) {
       const roleCount = countPerRole.get(role) ?? 0;
       if (roleCount >= args.maxPerRole) continue;
+
+      const roleBatch: JobRow[] = [];
 
       for (const location of locations) {
         if (byUrl.size >= args.maxJobs) break;
@@ -253,7 +270,7 @@ async function main(): Promise<void> {
             continue;
           }
 
-          byUrl.set(job_url, {
+          const job: JobRow = {
             job_title: raw.job_title || "Unknown Title",
             company: raw.company || "Unknown Company",
             job_url,
@@ -263,22 +280,32 @@ async function main(): Promise<void> {
             linkedin_score: raw.linkedin_score || "",
             posted_at: raw.posted_at || "",
             fetched_at: new Date().toISOString(),
-          });
+          };
 
+          byUrl.set(job_url, job);
+          roleBatch.push(job);
           countPerRole.set(role, (countPerRole.get(role) ?? 0) + 1);
         }
       }
 
-      console.log(`  → ${countPerRole.get(role) ?? 0} job(s) found for "${role}"`);
+      const roleFound = countPerRole.get(role) ?? 0;
+      console.log(`  → ${roleFound} job(s) found for "${role}" — scoring...`);
+
+      // Score just this role's batch, then merge back into byUrl
+      const scoredBatch = await scoreJobs(roleBatch, profile, config);
+      for (const job of scoredBatch) {
+        byUrl.set(job.job_url, job);
+      }
+
+      // Write after each role so dashboard updates in real time
+      writeJobsCsv(args.outFile, Array.from(byUrl.values()));
+      console.log(`  ✓ Written to CSV (total so far: ${byUrl.size})`);
     }
 
-    const jobs = Array.from(byUrl.values());
-    const profile = loadProfile(config.profilePath);
-    const finalJobs = await scoreJobs(jobs, profile, config);
-    writeJobsCsv(args.outFile, finalJobs);
+    const finalJobs = Array.from(byUrl.values());
     const easyCount = finalJobs.filter((j) => j.apply_type === "easy_apply").length;
     const externalCount = finalJobs.filter((j) => j.apply_type === "external").length;
-    console.log(`\nWrote ${finalJobs.length} job(s) to ${path.resolve(process.cwd(), args.outFile)}`);
+    console.log(`\nDone. ${finalJobs.length} job(s) in ${path.resolve(process.cwd(), args.outFile)}`);
     console.log(`  Easy Apply: ${easyCount} | External: ${externalCount} (apply manually)`);
   } finally {
     await context.close();

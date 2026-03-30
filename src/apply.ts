@@ -968,6 +968,14 @@ export async function processJobs(
     console.log(`\n[${index + 1}/${max}] ${job.job_title} @ ${job.company}`);
     console.log(`  URL: ${job.job_url}`);
 
+    // Skip external jobs immediately — no page load needed
+    if ((job.apply_type as string) === "external") {
+      console.log("  External job — apply manually. Skipping.");
+      writeResult({ job_url: job.job_url, status: "skipped", timestamp: nowIso() });
+      console.log("  Status: skipped");
+      continue;
+    }
+
     const page = await createPage(context);
     const coverLetter = profile?.coverLetter;
     let status: ApplyStatus = "failed";

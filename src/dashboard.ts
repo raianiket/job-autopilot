@@ -108,57 +108,64 @@ function applyTypeBadge(type: string): string {
 }
 
 function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
+  const resultMap = new Map(results.map((r) => [r.job_url, r]));
+  const jobMap    = new Map(jobs.map((j) => [j.job_url, j]));
+
+  // Merge: start with all jobs from jobs.csv, then add any results entries not in jobs.csv
+  const allUrls = new Set([...jobs.map((j) => j.job_url), ...results.map((r) => r.job_url)]);
+  const merged = [...allUrls].map((url) => {
+    const job    = jobMap.get(url);
+    const result = resultMap.get(url);
+    return { job, result, url };
+  });
+
+  // Sort: applied first (most recent), then failed, then skipped, then pending easy_apply, then pending external
+  const statusOrder = (s?: string) => s === "applied" ? 0 : s === "failed" ? 1 : s === "skipped" ? 2 : 3;
+  merged.sort((a, b) => {
+    const sa = statusOrder(a.result?.status);
+    const sb = statusOrder(b.result?.status);
+    if (sa !== sb) return sa - sb;
+    // Within same status: most recent first
+    if (a.result && b.result) return b.result.timestamp.localeCompare(a.result.timestamp);
+    // Pending: easy_apply before external
+    if (!a.result && !b.result) {
+      const ta = a.job?.apply_type === "easy_apply" ? 0 : 1;
+      const tb = b.job?.apply_type === "easy_apply" ? 0 : 1;
+      return ta - tb;
+    }
+    return 0;
+  });
+
   const applied  = results.filter((r) => r.status === "applied").length;
   const skipped  = results.filter((r) => r.status === "skipped").length;
   const failed   = results.filter((r) => r.status === "failed").length;
   const easyJobs = jobs.filter((j) => j.apply_type === "easy_apply").length;
   const extJobs  = jobs.filter((j) => j.apply_type === "external").length;
+  const pending  = easyJobs - results.filter((r) => {
+    const j = jobMap.get(r.job_url);
+    return j?.apply_type === "easy_apply";
+  }).length;
 
-  // Build a map of job_url → job details for enriching results table
-  const jobMap = new Map(jobs.map((j) => [j.job_url, j]));
+  const categories = [...new Set(jobs.map((j) => j.role_category || "Other"))];
 
-  const resultRows = results.map((r, i) => {
-    const job = jobMap.get(r.job_url);
-    return `
-    <tr>
-      <td>${i + 1}</td>
-      <td><span class="badge" style="background:${statusColor(r.status)}">${r.status}</span></td>
-      <td>${job ? `<strong>${job.job_title}</strong><br/><small>${job.company}</small>` : `<a href="${r.job_url}" target="_blank">${r.job_url}</a>`}</td>
-      <td>${job ? applyTypeBadge(job.apply_type) : ""}</td>
-      <td>${job?.score ? job.score + "/10" : ""}</td>
-      <td>${r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}</td>
-    </tr>`;
-  }).join("");
-
-  // Sort jobs by AI score desc, then by linkedin_score presence
-  const sortedJobs = [...jobs].sort((a, b) => {
-    const sa = Number(a.score) || 0;
-    const sb = Number(b.score) || 0;
-    if (sb !== sa) return sb - sa;
-    // secondary: linkedin_score present = higher priority
-    return (b.linkedin_score ? 1 : 0) - (a.linkedin_score ? 1 : 0);
-  });
-
-  // Group jobs by role_category
-  const categories = [...new Set(sortedJobs.map((j) => j.role_category || "Other"))];
-
-  const jobRows = sortedJobs.map((j, i) => {
-    const result = results.find((r) => r.job_url === j.job_url);
+  const rows = merged.map((m, i) => {
+    const { job, result, url } = m;
     const statusCell = result
       ? `<span class="badge" style="background:${statusColor(result.status)}">${result.status}</span>`
       : `<span style="color:#475569;font-size:.8rem">pending</span>`;
+    const timeCell = result?.timestamp ? new Date(result.timestamp).toLocaleString() : "";
+    const titleCell = job
+      ? `<a href="${url}" target="_blank"><strong>${job.job_title}</strong></a><br/><small>${job.company}</small>`
+      : `<a href="${url}" target="_blank">${url}</a>`;
     return `
-    <tr class="job-row" data-category="${j.role_category || "Other"}">
+    <tr class="job-row" data-category="${job?.role_category || "Other"}">
       <td>${i + 1}</td>
-      <td><a href="${j.job_url}" target="_blank"><strong>${j.job_title}</strong></a><br/><small style="color:#64748b">${j.company}</small></td>
-      <td style="color:#94a3b8;font-size:.8rem">${j.location}</td>
-      <td>${applyTypeBadge(j.apply_type)}</td>
-      <td>${j.linkedin_score ? `<span style="color:#f59e0b;font-size:.8rem">${j.linkedin_score}</span>` : ""}</td>
-      <td>${j.score ? `<strong style="color:#6366f1">${j.score}/10</strong>` : ""}</td>
-      <td style="font-size:.75rem;color:#64748b;max-width:200px">${j.reason}</td>
-      <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${j.posted_at ? new Date(j.posted_at).toLocaleDateString() : ""}</td>
-      <td style="font-size:.75rem;color:#475569;white-space:nowrap">${j.fetched_at ? new Date(j.fetched_at).toLocaleDateString() : ""}</td>
+      <td>${titleCell}</td>
+      <td style="color:#94a3b8;font-size:.8rem">${job?.location ?? ""}</td>
+      <td>${applyTypeBadge(job?.apply_type ?? "")}</td>
+      <td>${job?.score ? `<strong style="color:#6366f1">${job.score}/10</strong>` : ""}</td>
       <td>${statusCell}</td>
+      <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${timeCell}</td>
     </tr>`;
   }).join("");
 
@@ -167,6 +174,7 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="refresh" content="15"/>
   <title>Job Autopilot Dashboard</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -174,7 +182,7 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     h1 { font-size: 1.5rem; font-weight: 700; }
     h2 { font-size: 1rem; font-weight: 600; margin: 2rem 0 1rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
     .sub { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; margin-top: .25rem; }
-    .stats { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .stats { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
     .stat { background: #1e293b; border-radius: .75rem; padding: 1.25rem 1.75rem; flex: 1; min-width: 120px; }
     .stat-label { font-size: .75rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
     .stat-value { font-size: 2rem; font-weight: 700; margin-top: .25rem; }
@@ -197,36 +205,28 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
 </head>
 <body>
   <h1>Job Autopilot Dashboard</h1>
-  <p class="sub">Refresh to update &nbsp;·&nbsp; ${jobs.length} discovered &nbsp;·&nbsp; ${results.length} attempted</p>
+  <p class="sub">Auto-refreshes every 15s &nbsp;·&nbsp; ${jobs.length} discovered &nbsp;·&nbsp; ${results.length} attempted</p>
 
   <div class="stats">
-    <div class="stat"><div class="stat-label">Discovered</div><div class="stat-value c-white">${jobs.length}</div></div>
     <div class="stat"><div class="stat-label">Easy Apply</div><div class="stat-value c-purple">${easyJobs}</div></div>
-    <div class="stat"><div class="stat-label">External</div><div class="stat-value c-white">${extJobs}</div></div>
+    <div class="stat"><div class="stat-label">Pending</div><div class="stat-value c-white">${Math.max(0, pending)}</div></div>
     <div class="stat"><div class="stat-label">Applied</div><div class="stat-value c-green">${applied}</div></div>
     <div class="stat"><div class="stat-label">Skipped</div><div class="stat-value c-yellow">${skipped}</div></div>
     <div class="stat"><div class="stat-label">Failed</div><div class="stat-value c-red">${failed}</div></div>
+    <div class="stat"><div class="stat-label">External</div><div class="stat-value c-white">${extJobs}</div></div>
   </div>
 
-  <h2>Results</h2>
-  ${results.length === 0
-    ? `<div class="empty">No applications yet. Run <code>npm run apply</code> to start.</div>`
-    : `<table>
-    <thead><tr><th>#</th><th>Job</th><th>Type</th><th>Score</th><th>Time</th></tr></thead>
-    <tbody>${resultRows}</tbody>
-  </table>`}
-
-  <h2>Discovered Jobs (${jobs.length})</h2>
-  ${jobs.length === 0
+  <h2>All Jobs (${merged.length})</h2>
+  ${merged.length === 0
     ? `<div class="empty">No jobs yet. Run <code>npm run discover</code> first.</div>`
     : `
   <div class="cats">
-    <div class="cat active" onclick="filterCat('all', this)">All (${jobs.length})</div>
-    ${categories.map((c) => `<div class="cat" onclick="filterCat('${c}', this)">${c} (${sortedJobs.filter((j) => (j.role_category || "Other") === c).length})</div>`).join("")}
+    <div class="cat active" onclick="filterCat('all', this)">All (${merged.length})</div>
+    ${categories.map((c) => `<div class="cat" onclick="filterCat('${c}', this)">${c}</div>`).join("")}
   </div>
   <table>
-    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>LinkedIn</th><th>AI Score</th><th>Reason</th><th>Posted</th><th>Fetched</th><th>Status</th></tr></thead>
-    <tbody>${jobRows}</tbody>
+    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>Score</th><th>Status</th><th>Time</th></tr></thead>
+    <tbody>${rows}</tbody>
   </table>
   <script>
     function filterCat(cat, el) {

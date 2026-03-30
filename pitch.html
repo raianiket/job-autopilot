@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Job Autopilot — Pitch & Interview Prep</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff;color:#0f172a;font-size:14px;line-height:1.7}
+  .page{max-width:860px;margin:0 auto;padding:48px 40px}
+
+  /* Cover */
+  .cover{text-align:center;padding:80px 0 60px;border-bottom:2px solid #e2e8f0;margin-bottom:48px}
+  .cover h1{font-size:2.8rem;font-weight:800;letter-spacing:-1px;color:#0f172a}
+  .cover h1 span{color:#6366f1}
+  .cover .sub{font-size:1.1rem;color:#64748b;margin-top:12px}
+  .cover .meta{margin-top:32px;display:flex;justify-content:center;gap:32px;flex-wrap:wrap}
+  .cover .meta div{text-align:center}
+  .cover .meta .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8}
+  .cover .meta .val{font-weight:700;font-size:1rem;color:#0f172a;margin-top:2px}
+
+  /* Section */
+  h2{font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #6366f1;display:inline-block}
+  section{margin-bottom:48px}
+
+  /* Pitch steps */
+  .step{display:flex;gap:16px;margin-bottom:20px;align-items:flex-start}
+  .step-num{min-width:36px;height:36px;border-radius:50%;background:#6366f1;color:#fff;font-weight:700;font-size:.9rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+  .step-body h3{font-size:1rem;font-weight:600;color:#0f172a;margin-bottom:4px}
+  .step-body p{color:#475569;font-size:.9rem}
+  .step-body .say{background:#f0f4ff;border-left:3px solid #6366f1;padding:10px 14px;border-radius:0 6px 6px 0;margin-top:8px;font-style:italic;color:#1e293b;font-size:.875rem}
+
+  /* Q&A */
+  .qa{margin-bottom:24px;background:#f8fafc;border-radius:10px;padding:20px;border:1px solid #e2e8f0}
+  .qa .q{font-weight:700;color:#0f172a;margin-bottom:10px;font-size:.95rem}
+  .qa .q::before{content:"Q: ";color:#6366f1}
+  .qa .a{color:#334155;font-size:.875rem}
+  .qa .a::before{content:"A: ";font-weight:600;color:#22c55e}
+  .qa .tag{display:inline-block;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:9999px;margin-bottom:10px}
+  .tag-tech{background:#e0e7ff;color:#4338ca}
+  .tag-arch{background:#dcfce7;color:#166534}
+  .tag-biz{background:#fef9c3;color:#854d0e}
+  .tag-hard{background:#fee2e2;color:#991b1b}
+  .tag-behav{background:#f3e8ff;color:#6b21a8}
+
+  /* Stack */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 12px;font-size:.8rem;font-weight:500;color:#334155}
+
+  /* Flow diagram */
+  .flow{display:flex;align-items:center;gap:0;margin:16px 0;flex-wrap:wrap}
+  .flow-box{background:#6366f1;color:#fff;border-radius:8px;padding:10px 16px;font-size:.8rem;font-weight:600;text-align:center;min-width:120px}
+  .flow-box.out{background:#0f172a}
+  .flow-arrow{color:#6366f1;font-size:1.2rem;padding:0 6px;font-weight:700}
+
+  /* Table */
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th{background:#0f172a;color:#fff;padding:8px 12px;text-align:left;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  td{padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:.875rem;color:#334155;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#f8fafc}
+
+  /* Highlight box */
+  .highlight{background:#f0f4ff;border:1px solid #c7d2fe;border-radius:10px;padding:16px 20px;margin:16px 0}
+  .highlight strong{color:#4338ca}
+
+  /* Print */
+  @media print{
+    body{font-size:12px}
+    .page{padding:24px}
+    .cover{padding:40px 0 30px}
+    section{margin-bottom:32px}
+    .qa{break-inside:avoid}
+    .step{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- COVER -->
+  <div class="cover">
+    <h1>job-<span>autopilot</span></h1>
+    <p class="sub">LinkedIn Easy Apply Automation · Pitch & Interview Prep</p>
+    <div class="meta">
+      <div><div class="label">Built By</div><div class="val">Aniket Rai</div></div>
+      <div><div class="label">Stack</div><div class="val">Node.js · TypeScript · Playwright</div></div>
+      <div><div class="label">GitHub</div><div class="val">raianiket/job-autopilot</div></div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: ONE-LINE PITCH -->
+  <section>
+    <h2>The One-Line Pitch</h2>
+    <div class="highlight">
+      <strong>"I built a tool that automates LinkedIn Easy Apply — it finds matching jobs, fills every form field using your profile, and stops right before submit so you always stay in control."</strong>
+    </div>
+  </section>
+
+  <!-- SECTION 2: STEP-BY-STEP PITCH -->
+  <section>
+    <h2>Step-by-Step Demo Pitch</h2>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Start with the problem (10 sec)</h3>
+        <p>Make them feel the pain before showing the solution.</p>
+        <div class="say">"Job hunting is repetitive. LinkedIn Easy Apply forms ask the same 15 fields every time — name, phone, experience, notice period, cover letter — and you fill them manually for every single job. I was spending 3-4 hours a week just on form filling."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>State what you built (15 sec)</h3>
+        <p>Keep it clear and simple — no jargon yet.</p>
+        <div class="say">"So I built job-autopilot. It has two phases: discover finds all matching jobs from LinkedIn based on your target roles and locations — capping at 10 per role, scoring each batch with AI as it goes, so the dashboard updates in real time. Apply opens each Easy Apply job, fills the form automatically from your profile JSON, and stops right before the submit button — you review everything and confirm. External jobs are skipped instantly without opening a browser. And you only log in once — the session is cached for 24 hours."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Show it live (60 sec)</h3>
+        <p>Open two terminals. This is the most powerful part of the demo.</p>
+        <div class="say">"Let me show you. I'll run <code>npm run apply</code> in one terminal — watch the browser open LinkedIn and fill the form automatically. And in the second terminal, <code>npm run dashboard</code> — this opens localhost:3000 and you can see the results updating live as each application is processed."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>Explain the interesting engineering (20 sec)</h3>
+        <p>This is where you show technical depth.</p>
+        <div class="say">"The tricky part was form detection. LinkedIn Easy Apply is multi-step — fields change between steps, radio button groups counted as N separate required fields breaking my skip logic, and some inputs only appear after scrolling. I built a step-loop that fills fields by matching input attributes against keyword patterns, correctly counts unanswered required fields per step, and navigates forward automatically."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h3>Mention AI scoring (10 sec)</h3>
+        <div class="say">"During discovery, if you set ANTHROPIC_API_KEY, it scores each role's batch of jobs 1-10 against your profile — one API call per role, not one giant call at the end. So jobs and scores appear in the dashboard role by role as discovery runs. The dashboard auto-refreshes every 15 seconds."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h3>Close with design philosophy (10 sec)</h3>
+        <div class="say">"The whole tool is fully config-driven — no hardcoded values, nothing sensitive committed to git. Anyone can clone it, fill in their own profile and config, and start applying in under 5 minutes."</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3: ARCHITECTURE -->
+  <section>
+    <h2>Architecture Overview</h2>
+
+    <div class="flow">
+      <div class="flow-box">profile.json<br/><small>roles, locations</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">discover.ts<br/><small>Playwright scrape</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">score.ts<br/><small>AI 1-10</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box out">jobs.csv</div>
+    </div>
+    <div class="flow" style="margin-top:8px">
+      <div class="flow-box out">jobs.csv</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">apply.ts<br/><small>fill + confirm</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box">Supabase<br/><small>optional sync</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box out">dashboard</div>
+    </div>
+
+    <table style="margin-top:20px">
+      <tr><th>File</th><th>What it does</th></tr>
+      <tr><td>src/discover.ts</td><td>Scrapes LinkedIn per role×location, caps at 10/role, scores each role batch immediately, writes jobs.csv incrementally</td></tr>
+      <tr><td>src/score.ts</td><td>Claude API call per role batch — scores 1-10, filters below minJobScore. Fail-open if API is down.</td></tr>
+      <tr><td>src/apply.ts</td><td>Multi-step form filler — keyword field matching, radio group counting, file upload, stops at submit. External jobs skipped instantly.</td></tr>
+      <tr><td>src/browser.ts</td><td>Playwright browser factory + 24h session cache — login once, reused by both discover and apply</td></tr>
+      <tr><td>src/dashboard.ts</td><td>Local HTTP server (port 3000) — reads CSVs on every request, auto-refreshes every 15s</td></tr>
+      <tr><td>src/supabase.ts</td><td>Optional — syncs each result to Supabase using service_role key; enables real-time dashboard updates</td></tr>
+      <tr><td>config.json</td><td>All config — phone, email, max jobs, AI model, headless mode. Gitignored.</td></tr>
+      <tr><td>data/profile.json</td><td>Candidate profile — name, roles, skills, cover letter. Gitignored.</td></tr>
+    </table>
+  </section>
+
+  <!-- SECTION 4: TECH STACK -->
+  <section>
+    <h2>Tech Stack</h2>
+    <div class="chips">
+      <div class="chip">Node.js</div>
+      <div class="chip">TypeScript</div>
+      <div class="chip">Playwright</div>
+      <div class="chip">@anthropic-ai/sdk</div>
+      <div class="chip">@supabase/supabase-js</div>
+      <div class="chip">csv-parse</div>
+      <div class="chip">tsx (runtime)</div>
+      <div class="chip">Supabase (Postgres + RLS + Realtime)</div>
+      <div class="chip">Vercel (dashboard hosting)</div>
+    </div>
+  </section>
+
+  <!-- SECTION 5: Q&A -->
+  <section>
+    <h2>Interview Q&A</h2>
+
+    <!-- Technical -->
+    <div class="qa">
+      <span class="tag tag-tech">Technical</span>
+      <div class="q">How does the form filling actually work?</div>
+      <div class="a">Two layers. Structured fields (phone, name, location, dropdowns, radios) are matched by <code>name</code>, <code>id</code>, and <code>placeholder</code> attributes against keyword patterns — for example, <code>input[name*="phone"]</code> or <code>input[type="tel"]</code>. For open-ended text/number questions that can't be pattern-matched (e.g. "Years of React experience"), I extract the label and send it to Claude with the candidate's profile. Experience rule: 5 years if the skill is in the profile, 1 year if not. Specific fields are filled before generic ones so a keyword like "name" doesn't overwrite a field correctly set by "firstname".</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-tech">Technical</span>
+      <div class="q">How do you handle multi-step forms?</div>
+      <div class="a">I run a loop up to <code>maxFormSteps</code> (default 8). Each iteration: fill all fields → check if submit button is visible → if not, count unanswered required fields → if zero, click Next/Review/Continue → repeat. If submit is found, I stop and prompt the user to review and confirm.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-hard">Hardest Problem</span>
+      <div class="q">What was the hardest bug you fixed?</div>
+      <div class="a">Radio button groups. LinkedIn renders Yes/No questions as radio inputs — each option is a separate <code>input[type="radio"]</code> with <code>required</code>. My original code counted each unchecked radio as one missing required field. A Yes/No question with 2 options counted as 2 unanswered fields — so the tool was auto-skipping jobs that were actually fully fillable. I fixed this by grouping radios by their <code>name</code> attribute and counting the whole group as 1 field, answered if any option in the group is checked.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-tech">Technical</span>
+      <div class="q">How does AI scoring work?</div>
+      <div class="a">Scoring happens per role, not all at once. After each role's jobs are scraped, that batch (up to 10 jobs) is sent to Claude in one API call. Claude returns a JSON array with index, score 1-10, and a one-line reason. Scores are merged back and written to jobs.csv immediately — so the dashboard shows scored jobs as discovery progresses. If the API call fails, the tool fails open — that role's jobs are kept unscored.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-arch">Architecture</span>
+      <div class="q">Why TypeScript instead of Python?</div>
+      <div class="a">Playwright has first-class TypeScript support and the typing is extremely useful for browser automation — <code>Page</code>, <code>Locator</code>, and <code>BrowserContext</code> types catch bugs at compile time rather than runtime. Python's Playwright bindings work but you lose the IDE autocomplete and type safety. Also, the whole stack — scraping, CSV handling, HTTP server, Supabase sync — is uniform in one language.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-arch">Architecture</span>
+      <div class="q">Why split into discover and apply phases instead of one command?</div>
+      <div class="a">Control. After discovery you can open jobs.csv and manually remove any job you don't want to apply to — wrong role, bad company, expired listing. If it were one command, you'd have no chance to review. The two-phase design also means if apply fails midway, you don't need to re-scrape — just re-run apply on the same CSV.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-arch">Architecture</span>
+      <div class="q">How is sensitive data handled? What's gitignored?</div>
+      <div class="a">config.json (phone, email, model key) and data/ (resume, profile with personal details) are both gitignored. The repo only contains example files with placeholder values. Credentials can also be passed via environment variables — LINKEDIN_PHONE, LINKEDIN_EMAIL, ANTHROPIC_API_KEY, SUPABASE_SERVICE_ROLE_KEY — so nothing sensitive ever touches the filesystem. The session cache file (.linkedin-session.json) is also gitignored — it stores browser cookies with a 30-min TTL and is never committed. The Supabase service role key (write access) is server-side only; the dashboard uses the anon key (read-only, public-safe) injected via Vercel env vars.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-arch">Architecture</span>
+      <div class="q">How does the real-time dashboard work?</div>
+      <div class="a">Two layers. The local dashboard (npm run dashboard) is a Node.js HTTP server that re-reads results.csv and jobs.csv on every request, with a meta refresh tag that auto-reloads every 15 seconds — so you see jobs populating role by role as discover runs, and results updating as apply runs. The hosted dashboard uses Supabase Realtime — the browser opens a WebSocket channel and subscribes to INSERT events on the job_results table. When apply.ts inserts a new row using the service_role key, Supabase broadcasts it and the dashboard updates without any refresh. RLS allows anon SELECT so the dashboard can read but not write.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-biz">Business</span>
+      <div class="q">Why not just apply manually?</div>
+      <div class="a">At scale — 50 applications a week — form filling alone takes 3-4 hours. Discovery (finding and filtering jobs) takes another hour. This tool compresses that to under 30 minutes: discover runs unattended, AI filters out weak matches, and apply pre-fills every form so you just review and hit Y. You stay in control of every submission while eliminating all the repetitive grunt work.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-biz">Business</span>
+      <div class="q">Does this violate LinkedIn's terms of service?</div>
+      <div class="a">LinkedIn's ToS restricts automated scraping and submission. This tool does not auto-submit — it always pauses for human confirmation before sending any application. The browser runs in visible (non-headless) mode. It's a productivity assistant, not a bot — the user manually reviews and approves every single application.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-biz">Business</span>
+      <div class="q">What would you add next?</div>
+      <div class="a">Three things: (1) Per-job cover letter generation — use the job description + profile to generate a tailored cover letter via AI, replacing the generic one. (2) Job description parsing — open each job URL, extract the description, and use it for better AI scoring and cover letter context. (3) A Slack/email notification when apply finishes a batch — so you can run it overnight and wake up to a summary.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-behav">Behavioural</span>
+      <div class="q">How long did this take to build?</div>
+      <div class="a">The core — discover, apply, form filling — took about a weekend. The trickier parts like radio button group counting, the multi-step form loop, and handling LinkedIn's dynamic DOM took additional iteration. The AI scoring, Supabase sync, and dashboard were added features built on top of the solid core.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-behav">Behavioural</span>
+      <div class="q">What did you learn building this?</div>
+      <div class="a">Browser automation at this level taught me that the DOM is far messier than any API. LinkedIn's form markup has no consistent naming convention — you're hunting for signals across name, id, placeholder, aria-label, and parent elements. I learned to write resilient selectors that try multiple strategies and fail gracefully rather than crash. I also learned that config-driven design pays off immediately — every time I wanted to change a value, I was glad it was in config.json and not buried in code.</div>
+    </div>
+
+    <div class="qa">
+      <span class="tag tag-behav">Behavioural</span>
+      <div class="q">Why did you choose this project for the Builder Challenge?</div>
+      <div class="a">Because it's a real tool I actually use. It solves a genuine problem I had, it's fully functional end-to-end, and it demonstrates the skills I use at work — backend Node.js, TypeScript, async systems, API integration, and thinking about security from the start. A portfolio chatbot would have been easier to build but this shows real engineering judgment.</div>
+    </div>
+  </section>
+
+  <!-- SECTION 6: CHEAT SHEET -->
+  <section>
+    <h2>Quick Cheat Sheet</h2>
+    <table>
+      <tr><th>Question type</th><th>Lead with</th></tr>
+      <tr><td>How does X work?</td><td>Start with what problem X solves, then explain the mechanism</td></tr>
+      <tr><td>Why did you choose X over Y?</td><td>State the tradeoff, then why X won for this use case</td></tr>
+      <tr><td>What's the hardest part?</td><td>Radio button groups bug — always a good concrete story</td></tr>
+      <tr><td>What would you add?</td><td>Per-job AI cover letter → job description parsing → notifications</td></tr>
+      <tr><td>Security concerns?</td><td>Gitignored secrets + session cache, service_role server-side only, anon key read-only, RLS enabled, 24h session TTL</td></tr>
+      <tr><td>Why TypeScript?</td><td>Type safety for Playwright's complex async API, catches bugs at compile time</td></tr>
+    </table>
+  </section>
+
+  <!-- SECTION 7: VIDEO SCRIPT -->
+  <section>
+    <h2>Video Script (12 min — Engineers + Tech Leads)</h2>
+
+    <div style="background:#f0f4ff;border-radius:10px;padding:16px 20px;margin-bottom:20px;border:1px solid #c7d2fe">
+      <strong style="color:#4338ca">Before recording:</strong> Dashboard running at localhost:3000 · jobs.csv populated with scores · Session cached (.linkedin-session.json present) · VS Code open with src/apply.ts, src/discover.ts, src/browser.ts · GitHub repo open in browser · Supabase table editor ready
+    </div>
+
+    <div class="step">
+      <div class="step-num">0:00</div>
+      <div class="step-body">
+        <h3>Problem — no screen, just talk (2 min)</h3>
+        <div class="say">"LinkedIn Easy Apply has no API. Every time you apply for a job, you're filling the same 15 fields — name, phone, years of experience, notice period, cover letter — manually, one by one, for every application. At scale that's 3 to 4 hours a week of pure repetition. What makes this hard to automate is that the forms are dynamic. Steps change based on previous answers. Fields have no consistent naming. Radio button groups look like N separate required fields when they're actually one question. So I built job-autopilot — a two-phase system that handles discovery, AI scoring, form filling, and result tracking. With one rule: it never submits without your confirmation."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2:00</div>
+      <div class="step-body">
+        <h3>Live Demo — Terminal + Dashboard + Apply (2:30 min)</h3>
+        <p>Show: dashboard category tabs → run <code>npm run apply</code> → browser fills form → stop at submit → confirm → result appears in dashboard</p>
+        <div class="say">"Let me show you the full flow. Discover already ran — 37 jobs across 7 role categories, 14 Easy Apply, 23 external. The dashboard shows them grouped by role. Now apply — the browser opens the job, clicks Easy Apply, fills every field automatically, and stops here. I review, hit Y, and the result is logged both locally and in Supabase."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4:30</div>
+      <div class="step-body">
+        <h3>Architecture — walk the code in VS Code (3:30 min)</h3>
+        <p>Show: discover.ts role loop → score.ts batch call → apply.ts step loop + getUnansweredRequiredCount → supabase.ts</p>
+        <div class="say">"Two phases separated by a CSV and a human review step. Discover loops each role, searches LinkedIn per location, extracts cards with raw DOM evaluation, caps at 10 per role — then immediately scores that batch with Claude and writes to CSV. The dashboard auto-refreshes every 15 seconds, so you watch jobs and scores appear role by role. Session is cached after first login — discover and apply both reuse it for 24 hours, no re-login needed. Apply skips external jobs instantly without opening a browser. For Easy Apply jobs it runs a step loop: fill → check submit → count required fields → click next → repeat. Field matching uses keyword patterns on input attributes — specific first, generic last. Service role key stays server-side. Anon key, scoped to SELECT by RLS, goes to the dashboard."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">8:00</div>
+      <div class="step-body">
+        <h3>Tradeoffs — 3 decisions (2:30 min)</h3>
+        <div class="say">"CSV as queue over a database — it's human-editable between phases. That's a feature. Keyword matching over AI form filling — one API call per step is slow, expensive, non-deterministic. Keywords are fast, free, deterministic. AI is reserved for scoring, not data entry. Never auto-submit — a bad submission can't be undone. The 5-second confirmation loop is the entire point."</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">10:30</div>
+      <div class="step-body">
+        <h3>Failure Modes + Close (1:30 min)</h3>
+        <div class="say">"What breaks: LinkedIn's DOM changes — selectors fail silently, jobs save with unknown titles, you update the selector. Rate limiting — slowMo and delays simulate human speed, browser is visible so you see blocks immediately. Radio button miscounting — hit this in production, fixed by grouping by name attribute. The code is at github.com/raianiket/job-autopilot. With more time: per-job cover letters, job description parsing for better scoring, overnight notifications. Thanks for watching."</div>
+        <p style="color:#ef4444;font-size:.85rem;margin-top:8px">⚠ Stop immediately after "Thanks for watching." Cut within 2 seconds. No filler.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 8: SUBMIT CHECKLIST -->
+  <section>
+    <h2>Submission Checklist</h2>
+    <table>
+      <tr><th>Item</th><th>Status</th></tr>
+      <tr><td>Public GitHub repo: github.com/raianiket/job-autopilot</td><td>✅ Live</td></tr>
+      <tr><td>README.md — setup, run, config</td><td>✅ Done</td></tr>
+      <tr><td>ARCHITECTURE.md — design doc with system diagram, tradeoffs, failure modes</td><td>✅ Done</td></tr>
+      <tr><td>config.example.json + data/profile.example.json</td><td>✅ Done</td></tr>
+      <tr><td>Working code — npm install → discover → apply all work</td><td>✅ Done</td></tr>
+      <tr><td>Video — 12 min covering both Engineer + Tech Lead tracks</td><td>⬜ Record</td></tr>
+    </table>
+  </section>
+
+</div>
+</body>
+</html>

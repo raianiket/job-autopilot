@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import fs from "node:fs";
 import path from "node:path";
 import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
 import { readJobs } from "./csvReader";
+import { updateHistoryRows, writeJobsCsv } from "./jobsCsv";
 import { AppConfig, CandidateProfile, JobRow } from "./types";
 
 /** Human-readable labels for the rubric keys defined in config.evaluation.weights. */
@@ -100,10 +100,11 @@ export async function evaluateJobs(
   const client = new Anthropic();
   const candidate = profileSummary(profile);
   const RUBRIC_TEXT = rubricText(config);
+  let done = 0;
 
-  // One job per call: descriptions are long and batching them degrades scoring quality.
-  for (let i = 0; i < jobs.length; i += 1) {
-    const job = jobs[i];
+  // One job per call: descriptions are long and batching them degrades scoring
+  // quality. Calls run concurrently in bounded waves instead.
+  const evaluateOne = async (job: JobRow, i: number): Promise<void> => {
     const description = (job.description ?? "").slice(0, config.evaluation.maxDescriptionChars);
 
     const prompt = `You are a rigorous job-fit evaluator. Score this role for this candidate.
@@ -155,12 +156,17 @@ Return ONLY valid JSON, no markdown fences:
       });
 
       console.log(
-        `  [${i + 1}/${jobs.length}] ${job.job_title} @ ${job.company} — ${fit}/5 ${verdict}` +
+        `  [${++done}/${jobs.length}] ${job.job_title} @ ${job.company} — ${fit}/5 ${verdict}` +
           (flags.length ? ` (${flags.length} red flag${flags.length > 1 ? "s" : ""})` : "")
       );
     } catch (err) {
-      console.warn(`  [${i + 1}/${jobs.length}] Evaluation failed: ${(err as Error).message}`);
+      console.warn(`  [${++done}/${jobs.length}] Evaluation failed: ${(err as Error).message}`);
     }
+  };
+
+  const size = Math.max(1, config.evaluation.concurrency);
+  for (let i = 0; i < jobs.length; i += size) {
+    await Promise.all(jobs.slice(i, i + size).map((job, k) => evaluateOne(job, i + k)));
   }
 
   return results;
@@ -184,46 +190,129 @@ export function applyEvaluations(jobs: JobRow[], evals: Map<string, JobEvaluatio
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  let inFile = "data/jobs.csv";
-  let limit = 25;
+interface EvalArgs {
+  inFile: string;
+  limit: number;
+  force: boolean;
+  minFit: number;
+  onlyVerdict?: Verdict;
+  source?: string;
+  dryRun: boolean;
+}
+
+function parseArgs(argv: string[]): EvalArgs {
+  const args: EvalArgs = { inFile: "data/jobs.csv", limit: 25, force: false, minFit: 0, dryRun: false };
 
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === "--in" && argv[i + 1]) { inFile = argv[i + 1]; i += 1; continue; }
-    if (argv[i] === "--limit" && argv[i + 1]) {
-      const n = Number.parseInt(argv[i + 1], 10);
-      if (!Number.isNaN(n) && n > 0) limit = n;
-      i += 1;
+    const t = argv[i];
+    if (t === "--force") { args.force = true; continue; }
+    if (t === "--dry-run") { args.dryRun = true; continue; }
+    if (t === "--in" && argv[i + 1]) { args.inFile = argv[++i]; continue; }
+    if (t === "--source" && argv[i + 1]) { args.source = argv[++i].toLowerCase(); continue; }
+    if (t === "--verdict" && argv[i + 1]) { args.onlyVerdict = argv[++i] as Verdict; continue; }
+    if (t === "--limit" && argv[i + 1]) {
+      const n = Number.parseInt(argv[++i], 10);
+      if (!Number.isNaN(n) && n > 0) args.limit = n;
+      continue;
+    }
+    if (t === "--min-fit" && argv[i + 1]) {
+      const n = Number.parseFloat(argv[++i]);
+      if (!Number.isNaN(n)) args.minFit = n;
+      continue;
+    }
+  }
+  return args;
+}
+
+const VERDICT_ORDER: Verdict[] = ["strong_apply", "apply", "maybe", "skip"];
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  const config = loadConfig();
+  const profile = loadProfile(config.profilePath);
+  const all = readJobs(args.inFile);
+
+  let candidates = all;
+  if (args.source) candidates = candidates.filter((j) => (j.source ?? "linkedin") === args.source);
+
+  // Already-scored rows are skipped so a re-run costs nothing for work done.
+  const unscored = args.force ? candidates : candidates.filter((j) => !j.verdict);
+  const cached = candidates.length - unscored.length;
+
+  // Rows with a real description score far better, so they go first.
+  const ranked = [...unscored].sort(
+    (a, b) => (b.description ?? "").length - (a.description ?? "").length
+  );
+  const target = ranked.slice(0, args.limit);
+
+  const dims = Object.keys(config.evaluation.weights).length;
+  console.log(
+    `${candidates.length} job(s) in scope; ${cached} already scored, ${unscored.length} unscored.`
+  );
+  if (!target.length) {
+    console.log("Nothing to evaluate. Use --force to re-score.");
+    return;
+  }
+  console.log(
+    `Evaluating ${target.length} against ${dims} dimensions, ${config.evaluation.concurrency} at a time...\n`
+  );
+
+  const evals = await evaluateJobs(target, profile, config);
+  if (!evals.size) {
+    console.log("\nNo evaluations produced.");
+    return;
+  }
+
+  const merged = applyEvaluations(all, evals);
+
+  // Persist into the files the dashboard actually reads.
+  if (!args.dryRun) {
+    writeJobsCsv(args.inFile, merged);
+    const historyFile = path.resolve(path.dirname(path.resolve(args.inFile)), "jobs_history.csv");
+    const updated = new Map(
+      merged.filter((j) => evals.has(j.job_url)).map((j) => [j.job_url, j])
+    );
+    const n = updateHistoryRows(historyFile, updated);
+    console.log(`\nWrote ${evals.size} evaluation(s) to ${args.inFile}; updated ${n} history row(s).`);
+  } else {
+    console.log("\n(--dry-run: nothing written)");
+  }
+
+  const byVerdict = new Map<string, number>();
+  for (const ev of evals.values()) byVerdict.set(ev.verdict, (byVerdict.get(ev.verdict) ?? 0) + 1);
+
+  console.log("\nVerdict breakdown");
+  for (const v of VERDICT_ORDER) {
+    const n = byVerdict.get(v) ?? 0;
+    console.log(`  ${v.padEnd(13)} ${String(n).padStart(3)}  ${"█".repeat(n)}`);
+  }
+
+  const flagged = [...evals.values()].filter((e) => e.red_flags.length);
+  if (flagged.length) {
+    console.log(`\n${flagged.length} posting(s) carry red flags:`);
+    for (const ev of flagged.slice(0, 5)) {
+      const job = target[ev.index];
+      console.log(`  ${job?.company ?? "?"} — ${ev.red_flags.join("; ")}`);
     }
   }
 
-  const config = loadConfig();
-  const profile = loadProfile(config.profilePath);
-  const all = readJobs(inFile);
+  // Ranked shortlist, honouring --verdict / --min-fit.
+  let shortlist = merged.filter((j) => evals.has(j.job_url));
+  if (args.onlyVerdict) shortlist = shortlist.filter((j) => j.verdict === args.onlyVerdict);
+  if (args.minFit) shortlist = shortlist.filter((j) => (j.fit_score ?? 0) >= args.minFit);
+  shortlist.sort((a, b) => (b.fit_score ?? 0) - (a.fit_score ?? 0));
 
-  // Prefer rows that have a description, they produce a far better evaluation.
-  const withDesc = all.filter((j) => (j.description ?? "").length > 200);
-  const target = (withDesc.length ? withDesc : all).slice(0, limit);
-
-  const dimensions = Object.keys(config.evaluation.weights).length;
-  console.log(`Evaluating ${target.length} job(s) against the ${dimensions}-dimension rubric...\n`);
-  const evals = await evaluateJobs(target, profile, config);
-  const merged = applyEvaluations(all, evals);
-
-  const byVerdict = new Map<string, number>();
-  for (const ev of evals.values()) {
-    byVerdict.set(ev.verdict, (byVerdict.get(ev.verdict) ?? 0) + 1);
+  if (shortlist.length) {
+    console.log(`\nTop ${Math.min(10, shortlist.length)} by fit:`);
+    for (const j of shortlist.slice(0, 10)) {
+      const flag = j.red_flags ? " ⚑" : "";
+      console.log(
+        `  ${String(j.fit_score ?? "").padStart(4)}/5  ${(j.verdict ?? "").padEnd(13)} ${j.job_title} @ ${j.company}${flag}`
+      );
+    }
   }
 
-  console.log("\nVerdict breakdown:");
-  for (const v of ["strong_apply", "apply", "maybe", "skip"]) {
-    console.log(`  ${v.padEnd(13)} ${byVerdict.get(v) ?? 0}`);
-  }
-
-  const outPath = path.resolve(process.cwd(), inFile.replace(/\.csv$/, "_evaluated.json"));
-  fs.writeFileSync(outPath, JSON.stringify(merged, null, 2), "utf-8");
-  console.log(`\nWritten to ${outPath}`);
+  console.log("\nRun `npm run dashboard` to browse these with the verdict column.");
 }
 
 if (require.main === module) {

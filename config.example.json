@@ -1,21 +1,17 @@
 {
   "phone": "+91XXXXXXXXXX",
   "email": "you@example.com",
-
   "resumePath": "./data/documents/resume.pdf",
   "coverLetterPath": "./data/documents/cover-letter.pdf",
   "profilePath": "./data/profile.json",
-
   "claudeModel": "claude-opus-4-6",
   "minJobScore": 6,
-
   "maxApplicationsPerRun": 15,
   "delayBetweenJobsSeconds": 30,
   "maxFormSteps": 8,
   "autoSkipUnansweredRequired": true,
   "headless": false,
   "browserSlowMo": 100,
-
   "sources": {
     "linkedin": {
       "enabled": true,
@@ -40,13 +36,17 @@
       "limitPerQuery": 50
     }
   },
-
   "filters": {
-    "excludeTitlePatterns": ["intern", "internship", "trainee", "fresher", "graduate program"],
+    "excludeTitlePatterns": [
+      "intern",
+      "internship",
+      "trainee",
+      "fresher",
+      "graduate program"
+    ],
     "allowRemote": true,
     "requireLocationMatch": true
   },
-
   "evaluation": {
     "enabled": true,
     "weights": {
@@ -63,9 +63,9 @@
       "maybe": 2.5
     },
     "redFlagSkipCount": 3,
-    "maxDescriptionChars": 12000
+    "maxDescriptionChars": 12000,
+    "concurrency": 4
   },
-
   "interview": {
     "storiesPath": "./data/stories.json",
     "questionsPerSession": 8

@@ -99,6 +99,8 @@ export interface EvaluationConfig {
   redFlagSkipCount: number;
   /** Job description characters sent to the model. */
   maxDescriptionChars: number;
+  /** How many jobs to evaluate in parallel. */
+  concurrency: number;
 }
 
 export interface InterviewConfig {

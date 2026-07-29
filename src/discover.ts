@@ -5,6 +5,7 @@ import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
 import { scoreJobs } from "./score";
 import { fetchAggregatorJobs, fetchPortalJobs } from "./sources";
+import { writeJobsCsv } from "./jobsCsv";
 import { JobRow } from "./types";
 
 interface CliArgs {
@@ -62,93 +63,6 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   return { config, outFile, maxJobs, maxPerRole, roles, portalsOnly, skipPortals };
-}
-
-function csvEscape(value: string): string {
-  const normalized = value.replaceAll('"', '""');
-  return `"${normalized}"`;
-}
-
-function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
-  const resolved = path.resolve(process.cwd(), outFile);
-  const rows = [
-    "job_title,company,job_url,location,apply_type,source,role_category,linkedin_score,score,reason,red_flags,posted_at,fetched_at,description",
-  ];
-
-  for (const job of jobs) {
-    rows.push(
-      [
-        csvEscape(job.job_title),
-        csvEscape(job.company),
-        csvEscape(job.job_url),
-        csvEscape(job.location),
-        csvEscape(job.apply_type ?? ""),
-        csvEscape(job.source ?? "linkedin"),
-        csvEscape(job.role_category ?? ""),
-        csvEscape(job.linkedin_score ?? ""),
-        csvEscape(String(job.score ?? "")),
-        csvEscape(job.reason ?? ""),
-        csvEscape(job.red_flags ?? ""),
-        csvEscape(job.posted_at ?? ""),
-        csvEscape(job.fetched_at ?? ""),
-        // Flattened to one line: the dashboard and the history dedupe both read
-        // this file line-by-line, so an embedded newline would split a record.
-        csvEscape((job.description ?? "").replace(/\s+/g, " ").trim()),
-      ].join(",")
-    );
-  }
-
-  fs.writeFileSync(resolved, `${rows.join("\n")}\n`, "utf-8");
-
-  // Also upsert into persistent history so the dashboard never loses job details
-  const historyFile = path.resolve(path.dirname(resolved), "jobs_history.csv");
-  const existingUrls = new Set<string>();
-  const header = rows[0];
-
-  if (fs.existsSync(historyFile)) {
-    const raw = fs.readFileSync(historyFile, "utf-8");
-    const lines = raw.split("\n");
-
-    // The column set grows over time. Appending new-schema rows under an old
-    // header silently misaligns every field, so migrate the file first.
-    if (lines[0]?.trim() && lines[0].trim() !== header) {
-      const oldCols = (lines[0].match(/"(?:[^"]|"")*"|[^,]+/g) ?? []).map((c) =>
-        c.replace(/^"|"$/g, "").trim()
-      );
-      const newCols = header.split(",");
-      const migrated = [header];
-
-      for (const line of lines.slice(1)) {
-        if (!line.trim()) continue;
-        const parts = line.match(/"(?:[^"]|"")*"/g) ?? [];
-        const byName = new Map<string, string>();
-        oldCols.forEach((col, i) => byName.set(col, parts[i] ?? '""'));
-        migrated.push(newCols.map((col) => byName.get(col) ?? '""').join(","));
-      }
-
-      fs.writeFileSync(historyFile, `${migrated.join("\n")}\n`, "utf-8");
-      console.log(`Migrated jobs_history.csv from ${oldCols.length} to ${newCols.length} columns.`);
-    }
-
-    const existing = fs.readFileSync(historyFile, "utf-8").split("\n").slice(1);
-    for (const line of existing) {
-      if (!line.trim()) continue;
-      // Extract URL (3rd field, index 2) — fields are all quoted
-      const parts = line.match(/"(?:[^"]|"")*"/g) ?? [];
-      if (parts[2]) existingUrls.add(parts[2].replace(/^"|"$/g, ""));
-    }
-  }
-  const newRows = rows.slice(1).filter((r) => {
-    const parts = r.match(/"(?:[^"]|"")*"/g) ?? [];
-    const url = parts[2]?.replace(/^"|"$/g, "") ?? "";
-    return url && !existingUrls.has(url);
-  });
-  if (!fs.existsSync(historyFile)) {
-    fs.writeFileSync(historyFile, `${header}\n`, "utf-8");
-  }
-  if (newRows.length > 0) {
-    fs.appendFileSync(historyFile, `${newRows.join("\n")}\n`, "utf-8");
-  }
 }
 
 function normalizeLinkedInJobUrl(url: string): string {

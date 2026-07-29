@@ -56,6 +56,7 @@ const DEFAULT_EVALUATION: EvaluationConfig = {
   thresholds: { strong_apply: 4.2, apply: 3.4, maybe: 2.5 },
   redFlagSkipCount: 3,
   maxDescriptionChars: 12000,
+  concurrency: 4,
 };
 
 const DEFAULT_INTERVIEW: InterviewConfig = {
@@ -142,6 +143,9 @@ export function loadConfig(configPath?: string): AppConfig {
   }
   if (config.maxFormSteps < 1) {
     throw new Error("maxFormSteps must be >= 1");
+  }
+  if (config.evaluation.concurrency < 1) {
+    throw new Error("evaluation.concurrency must be >= 1");
   }
   if (config.sources.portals.concurrency < 1) {
     throw new Error("sources.portals.concurrency must be >= 1");

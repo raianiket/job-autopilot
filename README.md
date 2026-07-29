@@ -76,6 +76,20 @@ npm run discover                      # both
 
 Company boards live in `data/companies.json`. Every one of the 103 tokens shipped in `data/companies.example.json` was verified live against its API. A token that stops working is skipped with a warning, never aborting the run.
 
+### Aggregators
+
+Three job aggregators are also supported. These have no per-company token: each returns a broad feed that is filtered against your profile locally.
+
+| Source | Coverage | Notes |
+|---|---|---|
+| Instahyre | ~14,000 India-focused jobs | Paginated; ignores search params, so filtering is local |
+| Remotive | Remote jobs, full descriptions | Server-side search, one query per target role |
+| RemoteOK | ~100 remote jobs | Their terms ask for a link back when reusing the feed |
+
+Naukri, Hirist, and Wellfound were checked and have **no usable public API** (Naukri requires private auth headers; the other two return 404).
+
+Aggregator titles often differ from ATS conventions, so a role like `Backend Engineer` will not match a posting titled `Software Development Engineer III`. Add the variants you care about to `preferredRoles` in `data/profile.json`.
+
 ---
 
 ## How a job is judged

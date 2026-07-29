@@ -4,7 +4,7 @@ import { createBrowser, createContext, createPage, waitForLinkedInLogin, isSessi
 import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
 import { scoreJobs } from "./score";
-import { fetchPortalJobs } from "./sources";
+import { fetchAggregatorJobs, fetchPortalJobs } from "./sources";
 import { JobRow } from "./types";
 
 interface CliArgs {
@@ -246,6 +246,20 @@ async function main(): Promise<void> {
     if (byUrl.size) {
       writeJobsCsv(args.outFile, Array.from(byUrl.values()));
       console.log(`✓ ${byUrl.size} portal job(s) written to CSV.`);
+    }
+  }
+
+  // ── Job aggregators ────────────────────────────────────────────────────────
+  if (!args.skipPortals && config.sources.aggregators.enabled) {
+    const aggJobs = await fetchAggregatorJobs(config, profile);
+    const fresh = aggJobs.filter((job) => !byUrl.has(job.job_url));
+    const scoredAgg = await scoreJobs(fresh, profile, config);
+    for (const job of scoredAgg) {
+      if (job.job_url) byUrl.set(job.job_url, job);
+    }
+    if (fresh.length) {
+      writeJobsCsv(args.outFile, Array.from(byUrl.values()));
+      console.log(`✓ ${fresh.length} aggregator job(s) added (total ${byUrl.size}).`);
     }
   }
 

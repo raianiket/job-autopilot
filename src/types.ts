@@ -1,4 +1,11 @@
-export type JobSource = "linkedin" | "greenhouse" | "lever" | "ashby";
+export type JobSource =
+  | "linkedin"
+  | "greenhouse"
+  | "lever"
+  | "ashby"
+  | "instahyre"
+  | "remotive"
+  | "remoteok";
 
 export interface JobRow {
   job_title: string;
@@ -40,6 +47,7 @@ export interface StarStory {
 }
 
 export type PortalName = "greenhouse" | "lever" | "ashby";
+export type AggregatorName = "instahyre" | "remotive" | "remoteok";
 
 export interface LinkedInSourceConfig {
   enabled: boolean;
@@ -58,6 +66,18 @@ export interface PortalSourceConfig {
   greenhouse: boolean;
   lever: boolean;
   ashby: boolean;
+}
+
+export interface AggregatorSourceConfig {
+  enabled: boolean;
+  /** Instahyre ignores search params, so it is paginated and filtered locally. */
+  instahyre: boolean;
+  remotive: boolean;
+  remoteok: boolean;
+  /** Pages of 100 to pull from paginated aggregators. */
+  maxPages: number;
+  /** Per-query result cap for aggregators that support search. */
+  limitPerQuery: number;
 }
 
 export interface FilterConfig {
@@ -101,7 +121,11 @@ export interface AppConfig {
   minJobScore: number;
   headless: boolean;
   browserSlowMo: number;
-  sources: { linkedin: LinkedInSourceConfig; portals: PortalSourceConfig };
+  sources: {
+    linkedin: LinkedInSourceConfig;
+    portals: PortalSourceConfig;
+    aggregators: AggregatorSourceConfig;
+  };
   filters: FilterConfig;
   evaluation: EvaluationConfig;
   interview: InterviewConfig;

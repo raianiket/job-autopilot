@@ -30,6 +30,14 @@
       "greenhouse": true,
       "lever": true,
       "ashby": true
+    },
+    "aggregators": {
+      "enabled": true,
+      "instahyre": true,
+      "remotive": true,
+      "remoteok": true,
+      "maxPages": 20,
+      "limitPerQuery": 50
     }
   },
 

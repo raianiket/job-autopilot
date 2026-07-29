@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  AggregatorSourceConfig,
   AppConfig,
   EvaluationConfig,
   FilterConfig,
@@ -25,6 +26,15 @@ const DEFAULT_PORTALS: PortalSourceConfig = {
   greenhouse: true,
   lever: true,
   ashby: true,
+};
+
+const DEFAULT_AGGREGATORS: AggregatorSourceConfig = {
+  enabled: true,
+  instahyre: true,
+  remotive: true,
+  remoteok: true,
+  maxPages: 5,
+  limitPerQuery: 50,
 };
 
 const DEFAULT_FILTERS: FilterConfig = {
@@ -84,6 +94,7 @@ export function loadConfig(configPath?: string): AppConfig {
 
   const linkedin = section(DEFAULT_LINKEDIN, parsed.sources?.linkedin);
   const portals = section(DEFAULT_PORTALS, parsed.sources?.portals);
+  const aggregators = section(DEFAULT_AGGREGATORS, parsed.sources?.aggregators);
   const filters = section(DEFAULT_FILTERS, parsed.filters);
   const evaluation = section(DEFAULT_EVALUATION, parsed.evaluation);
   const interview = section(DEFAULT_INTERVIEW, parsed.interview);
@@ -117,7 +128,7 @@ export function loadConfig(configPath?: string): AppConfig {
     minJobScore: parsed.minJobScore ?? 0,
     headless: parsed.headless ?? false,
     browserSlowMo: parsed.browserSlowMo ?? 100,
-    sources: { linkedin, portals },
+    sources: { linkedin, portals, aggregators },
     filters,
     evaluation,
     interview,
@@ -135,8 +146,12 @@ export function loadConfig(configPath?: string): AppConfig {
   if (config.sources.portals.concurrency < 1) {
     throw new Error("sources.portals.concurrency must be >= 1");
   }
-  if (!config.sources.linkedin.enabled && !config.sources.portals.enabled) {
-    throw new Error("At least one of sources.linkedin.enabled or sources.portals.enabled must be true.");
+  if (
+    !config.sources.linkedin.enabled &&
+    !config.sources.portals.enabled &&
+    !config.sources.aggregators.enabled
+  ) {
+    throw new Error("At least one source under `sources` must be enabled.");
   }
 
   const { strong_apply, apply, maybe } = config.evaluation.thresholds;

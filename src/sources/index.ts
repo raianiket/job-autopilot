@@ -1,8 +1,11 @@
 import fs from "node:fs";
-import { AppConfig, CandidateProfile, JobRow, PortalCompanies, PortalName } from "../types";
+import { AggregatorName, AppConfig, CandidateProfile, JobRow, PortalCompanies, PortalName } from "../types";
 import { fetchGreenhouseJobs } from "./greenhouse";
 import { fetchLeverJobs } from "./lever";
 import { fetchAshbyJobs } from "./ashby";
+import { fetchInstahyreJobs } from "./instahyre";
+import { fetchRemotiveJobs } from "./remotive";
+import { fetchRemoteOkJobs } from "./remoteok";
 
 export function loadCompanies(companiesPath: string): PortalCompanies {
   if (!fs.existsSync(companiesPath)) {
@@ -121,5 +124,48 @@ export async function fetchPortalJobs(
   }
 
   console.log(`\nPortal discovery found ${collected.length} relevant job(s).`);
+  return collected;
+}
+
+/**
+ * Job aggregators. Unlike company boards these have no per-company token: each
+ * returns a broad feed that we filter against the profile locally.
+ */
+export async function fetchAggregatorJobs(
+  config: AppConfig,
+  profile: CandidateProfile | undefined
+): Promise<JobRow[]> {
+  const cfg = config.sources.aggregators;
+  if (!cfg.enabled) {
+    console.log("Aggregator discovery disabled in config.");
+    return [];
+  }
+
+  const roles = (profile?.preferredRoles ?? []).filter(Boolean);
+  const collected: JobRow[] = [];
+
+  const runners: Array<[AggregatorName, () => Promise<JobRow[]>]> = [
+    ["instahyre", () => fetchInstahyreJobs(cfg.maxPages)],
+    ["remotive", () => fetchRemotiveJobs(roles, cfg.limitPerQuery)],
+    ["remoteok", () => fetchRemoteOkJobs()],
+  ];
+
+  for (const [name, run] of runners) {
+    if (!cfg[name]) {
+      console.log(`[${name}] disabled in config — skipping.`);
+      continue;
+    }
+
+    try {
+      const jobs = await run();
+      const relevant = jobs.filter((job) => job.job_url && matchesProfile(job, profile, config));
+      console.log(`[${name}] ${relevant.length} relevant of ${jobs.length} fetched`);
+      collected.push(...relevant.map((job) => ({ ...job, role_category: categorize(job, profile) })));
+    } catch (err) {
+      console.warn(`[${name}] failed: ${(err as Error).message}`);
+    }
+  }
+
+  console.log(`\nAggregator discovery found ${collected.length} relevant job(s).`);
   return collected;
 }

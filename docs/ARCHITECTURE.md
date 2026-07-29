@@ -63,7 +63,7 @@ A two-phase pipeline: **discover** finds and scores jobs, **apply** fills forms 
 |---|---|---|
 | Config loader | `src/config.ts` | Merges config.json + env vars, validates required fields |
 | Profile loader | `src/profile.ts` | Loads candidate profile from JSON |
-| Browser factory | `src/browser.ts` | Creates Playwright Chromium instance, manages 24h session cache |
+| Browser factory | `src/browser.ts` | Creates Playwright Chromium instance, manages session cache (14d default) |
 | Job discoverer | `src/discover.ts` | LinkedIn scraper — per-role search, card extraction, dedup |
 | AI scorer | `src/score.ts` | Batch scores all jobs in one Claude API call, filters by minJobScore |
 | Form filler | `src/apply.ts` | Multi-step form automation, keyword-based field matching + AI (Claude) for open-ended questions |
@@ -122,10 +122,10 @@ Apply loop            → ApplyResult { job_url, status, timestamp }
 **Decision:** If the Claude API call fails, return all jobs unfiltered.
 **Why:** Discovery should never fail due to an external API being unavailable. A missed filter is recoverable — a failed discover run means you start over.
 
-### 6. 24-hour session caching
-**Decision:** After login, `context.storageState()` is saved to `.linkedin-session.json` with a timestamp. Both `discover` and `apply` skip the login page if the file exists and is under 24 hours old.
+### 6. Session caching
+**Decision:** After login, `context.storageState()` is saved to `.linkedin-session.json` with a timestamp. Both `discover` and `apply` skip the login page if the file exists and is under 14 days old.
 **Why:** Running discover then apply back-to-back previously required two manual logins. The session file stores cookies + localStorage, same as a browser remembering you.
-**Security:** File is gitignored, never committed. The 24h TTL limits exposure if the file is accidentally shared.
+**Security:** File is gitignored, never committed. The TTL limits exposure if the file is accidentally shared.
 
 ### 7. Service role key server-side only
 **Decision:** `SUPABASE_SERVICE_ROLE_KEY` is only used in `src/supabase.ts` (Node.js, never shipped to browser). The Vercel dashboard uses only the anon key.
@@ -143,7 +143,7 @@ Apply loop            → ApplyResult { job_url, status, timestamp }
 | Claude API down during scoring | Caught, warns, returns all jobs unfiltered | Re-run discover once API is back |
 | Supabase insert fails | Warning logged, result still written to `results.csv` | Results not lost, can sync later |
 | Session timeout during apply | Playwright throws, job marked `failed` | Re-run apply — failed jobs are retried |
-| Session cache expired mid-run | `isSessionValid()` returns false at startup, login prompted | Login once, new session saved for 24 hours |
+| Session cache expired mid-run | `isSessionValid()` returns false at startup, login prompted | Login once, new session saved for 14 days |
 
 ## Scale Considerations
 

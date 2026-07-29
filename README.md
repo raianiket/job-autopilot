@@ -275,7 +275,7 @@ Override the port with `CHROME_CDP_PORT`.
 
 ### 2. Cached session file
 
-After a manual login, the session is saved to `.linkedin-session.json` and reused for **24 hours**, so `discover` and `apply` back-to-back need only one login. The file is gitignored and never committed.
+After a manual login, the session is saved to `.linkedin-session.json` and reused for **14 days** (override with `LINKEDIN_SESSION_DAYS`), so `discover` and `apply` need only one login. The file is gitignored and never committed.
 
 ### 3. Manual login
 

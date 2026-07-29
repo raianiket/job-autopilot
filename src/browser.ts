@@ -3,7 +3,10 @@ import path from "node:path";
 import { chromium, Browser, BrowserContext, Page } from "playwright";
 
 const SESSION_FILE = path.resolve(process.cwd(), ".linkedin-session.json");
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// LinkedIn's own auth cookie lasts months, so a short TTL here just forces
+// pointless re-logins. Override with LINKEDIN_SESSION_DAYS.
+const SESSION_TTL_DAYS = Number.parseFloat(process.env.LINKEDIN_SESSION_DAYS ?? "") || 14;
+const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 export function isSessionValid(): boolean {
   if (!fs.existsSync(SESSION_FILE)) return false;
@@ -18,7 +21,7 @@ export function isSessionValid(): boolean {
 export async function saveSession(context: BrowserContext): Promise<void> {
   const state = await context.storageState();
   fs.writeFileSync(SESSION_FILE, JSON.stringify({ savedAt: Date.now(), ...state }), "utf-8");
-  console.log("Session saved (valid for 24 hours).");
+  console.log(`Session saved (valid for ${SESSION_TTL_DAYS} days).`);
 }
 
 export function clearSession(): void {
@@ -65,8 +68,8 @@ export async function createContext(browser: Browser): Promise<BrowserContext> {
 
   if (isSessionValid()) {
     const { savedAt, ...state } = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
-    const remaining = Math.round((SESSION_TTL_MS - (Date.now() - savedAt)) / 60000);
-    console.log(`Using cached session (expires in ~${remaining} min).`);
+    const hours = Math.round((SESSION_TTL_MS - (Date.now() - savedAt)) / 3600000);
+    console.log(`Using cached session (expires in ~${hours}h).`);
     return browser.newContext({ userAgent: ua, storageState: state, viewport: null });
   }
 

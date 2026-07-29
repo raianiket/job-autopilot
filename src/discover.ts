@@ -192,7 +192,7 @@ async function main(): Promise<void> {
   try {
     if (!isSessionValid() && !isAttachedToExistingChrome()) {
       console.log("Opening LinkedIn login page...");
-      await page.goto("https://www.linkedin.com/login", { waitUntil: "networkidle" });
+      await page.goto("https://www.linkedin.com/login", { waitUntil: "domcontentloaded", timeout: 60000 });
 
       if (config.email) {
         const emailInput = page.locator('input[name="session_key"], input#username').first();

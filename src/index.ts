@@ -142,7 +142,7 @@ async function main(): Promise<void> {
     if (!isSessionValid() && !isAttachedToExistingChrome()) {
       const loginPage = await createPage(context);
       console.log("\nOpening LinkedIn login page...");
-      await loginPage.goto("https://www.linkedin.com/login", { waitUntil: "networkidle" });
+      await loginPage.goto("https://www.linkedin.com/login", { waitUntil: "domcontentloaded", timeout: 60000 });
 
       if (cfg.email) {
         const emailInput = loginPage

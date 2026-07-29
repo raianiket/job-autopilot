@@ -253,19 +253,25 @@ Only LinkedIn needs a login. Portal discovery is unauthenticated, so `--portals-
 
 There are three ways in, tried in this order:
 
-### 1. Reuse the Chrome you're already logged into (no login at all)
+### 1. Attach to a Chrome you control (no login after the first time)
 
-Start Chrome with a debugging port open, then run as normal. Playwright attaches to that Chrome and reuses its real profile, so if you're already signed into LinkedIn there is nothing to log in to.
+If a Chrome is listening on the debugging port, Playwright attaches to it and reuses that profile's cookies, so there is nothing to log in to.
 
 ```bash
-# macOS
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+# macOS — note the dedicated profile directory, it is required
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.job-autopilot-chrome"
 
 npm run discover
 # → Connected to existing Chrome on port 9222 — reusing its logged-in session.
 ```
 
-Override the port with `CHROME_CDP_PORT`. Quit Chrome fully before starting it this way, or the flag is ignored.
+Log into LinkedIn once in that window. The profile directory persists, so every later run reuses it with no login and no 24-hour expiry.
+
+**`--user-data-dir` is not optional.** Since Chrome 136 (May 2025), Chrome silently ignores `--remote-debugging-port` when running on the **default** profile — a security fix that stops malware from stealing cookies over CDP. The flag is accepted, the port never opens, and the only clue is a warning on stderr. So attaching to your everyday, already-signed-in Chrome is not possible on current Chrome; the dedicated profile above is the supported route.
+
+Override the port with `CHROME_CDP_PORT`.
 
 ### 2. Cached session file
 

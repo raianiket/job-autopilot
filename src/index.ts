@@ -1,4 +1,4 @@
-import { createBrowser, createContext, createPage, waitForLinkedInLogin } from "./browser";
+import { createBrowser, createContext, createPage, waitForLinkedInLogin, isSessionValid, saveSession, isAttachedToExistingChrome } from "./browser";
 import { loadConfig } from "./config";
 import { readJobs } from "./csvReader";
 import { processJobs } from "./apply";
@@ -56,8 +56,10 @@ function filterJobsByPreferredRoles(jobs: JobRow[], preferredRoles?: string[]): 
   }
 
   return jobs.filter((job) => {
+    // Match on role_category first (set during discovery), fall back to job title
+    const category = (job.role_category ?? "").toLowerCase();
     const title = job.job_title.toLowerCase();
-    return normalized.some((role) => title.includes(role));
+    return normalized.some((role) => category.includes(role) || title.includes(role));
   });
 }
 
@@ -137,33 +139,39 @@ async function main(): Promise<void> {
 
   try {
     // ── Login ────────────────────────────────────────────────────────────────
-    const loginPage = await createPage(context);
-    console.log("\nOpening LinkedIn login page...");
-    await loginPage.goto("https://www.linkedin.com/login", { waitUntil: "domcontentloaded" });
+    if (!isSessionValid() && !isAttachedToExistingChrome()) {
+      const loginPage = await createPage(context);
+      console.log("\nOpening LinkedIn login page...");
+      await loginPage.goto("https://www.linkedin.com/login", { waitUntil: "networkidle" });
 
-    if (cfg.email) {
-      const emailInput = loginPage
-        .locator('input[name="session_key"], input#username')
-        .first();
-      if (await emailInput.count()) {
-        await emailInput.fill(cfg.email);
-        console.log(`Pre-filled email: ${cfg.email}`);
+      if (cfg.email) {
+        const emailInput = loginPage
+          .locator('input[name="session_key"], input#username')
+          .first();
+        await emailInput.waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+        if (await emailInput.count()) {
+          await emailInput.fill(cfg.email);
+          console.log(`Pre-filled email: ${cfg.email}`);
+        }
       }
+
+      if (process.env.LINKEDIN_PASSWORD) {
+        const passwordInput = loginPage
+          .locator('input[name="session_password"], input#password')
+          .first();
+        await passwordInput.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+        if (await passwordInput.count()) {
+          await passwordInput.fill(process.env.LINKEDIN_PASSWORD);
+          console.log("Pre-filled password from LINKEDIN_PASSWORD env var.");
+        }
+      }
+
+      console.log("Complete the login in the browser, then wait — the script will continue automatically.");
+      await waitForLinkedInLogin(loginPage);
+      await saveSession(context);
+      await loginPage.close();
     }
 
-    if (process.env.LINKEDIN_PASSWORD) {
-      const passwordInput = loginPage
-        .locator('input[name="session_password"], input#password')
-        .first();
-      if (await passwordInput.count()) {
-        await passwordInput.fill(process.env.LINKEDIN_PASSWORD);
-        console.log("Pre-filled password from LINKEDIN_PASSWORD env var.");
-      }
-    }
-
-    console.log("Complete the login in the browser, then wait — the script will continue automatically.");
-    await waitForLinkedInLogin(loginPage);
-    await loginPage.close();
     console.log("Login detected. Starting applications...\n");
 
     // ── Apply ────────────────────────────────────────────────────────────────

@@ -19,5 +19,6 @@
   "requiresSponsorship": false,
   "noticePeriod": "30 days",
   "expectedSalary": "",
+  "skills": ["Node.js", "TypeScript", "React", "PostgreSQL", "AWS", "Docker"],
   "coverLetter": "Dear Hiring Team,\n\nI am a Senior Software Engineer with 5+ years of experience...\n\nBest regards,\nJane Doe"
 }

@@ -18,28 +18,50 @@ export function isSessionValid(): boolean {
 export async function saveSession(context: BrowserContext): Promise<void> {
   const state = await context.storageState();
   fs.writeFileSync(SESSION_FILE, JSON.stringify({ savedAt: Date.now(), ...state }), "utf-8");
-  console.log("Session saved (valid for 30 minutes).");
+  console.log("Session saved (valid for 24 hours).");
 }
 
 export function clearSession(): void {
   if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
 }
 
+/** Set when we attached to a real Chrome instead of launching our own. */
+let attachedToExistingChrome = false;
+
+export function isAttachedToExistingChrome(): boolean {
+  return attachedToExistingChrome;
+}
+
 export async function createBrowser(headless = false, slowMo = 100): Promise<Browser> {
-  // Try connecting to existing Chrome with --remote-debugging-port=9222
-  // If not available, fall back to launching a new browser
+  // Attach to a Chrome the user already has open and logged in, if one is
+  // listening. Start it with:
+  //   /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+  const port = process.env.CHROME_CDP_PORT ?? "9222";
   try {
-    const browser = await chromium.connectOverCDP("http://localhost:9222");
-    console.log("Connected to existing Chrome on port 9222.");
+    const browser = await chromium.connectOverCDP(`http://localhost:${port}`);
+    attachedToExistingChrome = true;
+    console.log(`Connected to existing Chrome on port ${port} — reusing its logged-in session.`);
     return browser;
   } catch {
-    console.log("No Chrome on port 9222 — launching new browser.");
+    attachedToExistingChrome = false;
+    console.log(`No Chrome on port ${port} — launching a new browser.`);
     return chromium.launch({ headless, slowMo });
   }
 }
 
 export async function createContext(browser: Browser): Promise<BrowserContext> {
   const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+  // A CDP-attached Chrome already holds the real profile's cookies. Calling
+  // newContext() here would hand back an empty context and throw the login away.
+  if (attachedToExistingChrome) {
+    const existing = browser.contexts()[0];
+    if (existing) {
+      console.log("Reusing the existing Chrome profile — no LinkedIn login needed.");
+      return existing;
+    }
+    console.warn("Attached to Chrome but found no open context; falling back to a new one.");
+  }
 
   if (isSessionValid()) {
     const { savedAt, ...state } = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));

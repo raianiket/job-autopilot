@@ -2,6 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { exec } from "node:child_process";
+import { parse } from "csv-parse/sync";
 
 const RESULTS_CSV   = path.resolve(process.cwd(), "results.csv");
 const JOBS_HISTORY  = path.resolve(process.cwd(), "data/jobs_history.csv");
@@ -19,10 +20,14 @@ interface JobRow {
   job_url: string;
   location: string;
   apply_type: string;
+  source: string;
   role_category: string;
   linkedin_score: string;
   score: string;
   reason: string;
+  red_flags: string;
+  fit_score: string;
+  verdict: string;
   posted_at: string;
   fetched_at: string;
 }
@@ -57,39 +62,37 @@ function readJobs(): JobRow[] {
   const jobsFile = fs.existsSync(JOBS_HISTORY) ? JOBS_HISTORY : JOBS_CSV;
   if (!fs.existsSync(jobsFile)) return [];
 
-  const lines = fs.readFileSync(jobsFile, "utf-8").split("\n");
-  if (lines.length < 2) return [];
+  // csv-parse handles quoted commas and embedded newlines; a hand-rolled
+  // line splitter corrupts rows once descriptions are in the file.
+  let records: Array<Record<string, string>>;
+  try {
+    records = parse(fs.readFileSync(jobsFile, "utf-8"), {
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      trim: true,
+    }) as Array<Record<string, string>>;
+  } catch (err) {
+    console.warn(`Failed to parse ${jobsFile}: ${(err as Error).message}`);
+    return [];
+  }
 
-  const headers = lines[0].split(",").map((h) => unquote(h));
   const jobs: JobRow[] = [];
-
-  for (const line of lines.slice(1)) {
-    if (!line.trim()) continue;
-
-    // Parse CSV respecting quoted fields
-    const fields: string[] = [];
-    let current = "";
-    let inQuote = false;
-    for (const ch of line) {
-      if (ch === '"') { inQuote = !inQuote; continue; }
-      if (ch === "," && !inQuote) { fields.push(current.trim()); current = ""; continue; }
-      current += ch;
-    }
-    fields.push(current.trim());
-
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => { row[h] = fields[i] ?? ""; });
-
+  for (const row of records) {
     jobs.push({
       job_title:      row["job_title"]      ?? "",
       company:        row["company"]        ?? "",
       job_url:        row["job_url"]        ?? "",
       location:       row["location"]       ?? "",
       apply_type:     row["apply_type"]     ?? "",
+      source:         row["source"]         || "linkedin",
       role_category:  row["role_category"]  ?? "",
       linkedin_score: row["linkedin_score"] ?? "",
       score:          row["score"]          ?? "",
       reason:         row["reason"]         ?? "",
+      red_flags:      row["red_flags"]      ?? "",
+      fit_score:      row["fit_score"]      ?? "",
+      verdict:        row["verdict"]        ?? "",
       posted_at:      row["posted_at"]      ?? "",
       fetched_at:     row["fetched_at"]     ?? "",
     });
@@ -108,6 +111,41 @@ function applyTypeBadge(type: string): string {
   if (type === "easy_apply") return `<span style="background:#6366f1;color:#fff;padding:.15rem .5rem;border-radius:9999px;font-size:.7rem;font-weight:600">Easy Apply</span>`;
   if (type === "external")   return `<span style="background:#334155;color:#94a3b8;padding:.15rem .5rem;border-radius:9999px;font-size:.7rem;font-weight:600">External</span>`;
   return "";
+}
+
+const SOURCE_COLORS: Record<string, string> = {
+  linkedin: "#0a66c2",
+  greenhouse: "#3aab6d",
+  lever: "#7b5cff",
+  ashby: "#d97706",
+};
+
+function sourceBadge(source: string): string {
+  const color = SOURCE_COLORS[source] ?? "#475569";
+  return `<span style="background:${color};color:#fff;padding:.15rem .5rem;border-radius:9999px;font-size:.68rem;font-weight:600">${source}</span>`;
+}
+
+const VERDICT_COLORS: Record<string, string> = {
+  strong_apply: "#16a34a",
+  apply: "#22c55e",
+  maybe: "#f59e0b",
+  skip: "#ef4444",
+};
+
+function verdictBadge(verdict: string, fit: string): string {
+  if (!verdict) return "";
+  const color = VERDICT_COLORS[verdict] ?? "#475569";
+  const label = verdict.replace("_", " ");
+  const score = fit ? ` ${fit}/5` : "";
+  return `<span class="badge" style="background:${color}">${label}${score}</span>`;
+}
+
+/** Red flags are semicolon-joined; show a count with the full list on hover. */
+function redFlagCell(flags: string): string {
+  if (!flags.trim()) return "";
+  const list = flags.split(";").map((f) => f.trim()).filter(Boolean);
+  const title = list.join(" • ").replace(/"/g, "&quot;");
+  return `<span title="${title}" style="color:#ef4444;font-weight:600;cursor:help">⚑ ${list.length}</span>`;
 }
 
 function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
@@ -150,6 +188,9 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
   }).length;
 
   const categories = [...new Set(jobs.map((j) => j.role_category || "Other"))];
+  const sources = [...new Set(jobs.map((j) => j.source || "linkedin"))].sort();
+  const flagged = jobs.filter((j) => j.red_flags.trim()).length;
+  const portalJobs = jobs.filter((j) => (j.source || "linkedin") !== "linkedin").length;
 
   const rows = merged.map((m, i) => {
     const { job, result, url } = m;
@@ -161,12 +202,15 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
       ? `<a href="${url}" target="_blank"><strong>${job.job_title}</strong></a><br/><small>${job.company}</small>`
       : `<a href="${url}" target="_blank">${url}</a>`;
     return `
-    <tr class="job-row" data-category="${job?.role_category || "Other"}">
+    <tr class="job-row" data-category="${job?.role_category || "Other"}" data-source="${job?.source || "linkedin"}">
       <td>${i + 1}</td>
       <td>${titleCell}</td>
       <td style="color:#94a3b8;font-size:.8rem">${job?.location ?? ""}</td>
+      <td>${sourceBadge(job?.source || "linkedin")}</td>
       <td>${applyTypeBadge(job?.apply_type ?? "")}</td>
       <td>${job?.score ? `<strong style="color:#6366f1">${job.score}/10</strong>` : ""}</td>
+      <td>${verdictBadge(job?.verdict ?? "", job?.fit_score ?? "")}</td>
+      <td>${redFlagCell(job?.red_flags ?? "")}</td>
       <td>${statusCell}</td>
       <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${timeCell}</td>
     </tr>`;
@@ -217,29 +261,41 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     <div class="stat"><div class="stat-label">Skipped</div><div class="stat-value c-yellow">${skipped}</div></div>
     <div class="stat"><div class="stat-label">Failed</div><div class="stat-value c-red">${failed}</div></div>
     <div class="stat"><div class="stat-label">External</div><div class="stat-value c-white">${extJobs}</div></div>
+    <div class="stat"><div class="stat-label">Portals</div><div class="stat-value c-purple">${portalJobs}</div></div>
+    <div class="stat"><div class="stat-label">Red Flags</div><div class="stat-value c-red">${flagged}</div></div>
   </div>
 
   <h2>All Jobs (${merged.length})</h2>
   ${merged.length === 0
     ? `<div class="empty">No jobs yet. Run <code>npm run discover</code> first.</div>`
     : `
-  <div class="cats">
-    <div class="cat active" onclick="filterCat('all', this)">All (${merged.length})</div>
-    ${categories.map((c) => `<div class="cat" onclick="filterCat('${c}', this)">${c}</div>`).join("")}
+  <div class="cats" id="cat-filters">
+    <div class="cat active" data-kind="category" data-value="all" onclick="filterBy(this)">All (${merged.length})</div>
+    ${categories.map((c) => `<div class="cat" data-kind="category" data-value="${c}" onclick="filterBy(this)">${c}</div>`).join("")}
+  </div>
+  <div class="cats" id="src-filters">
+    <div class="cat active" data-kind="source" data-value="all" onclick="filterBy(this)">All sources</div>
+    ${sources.map((s) => `<div class="cat" data-kind="source" data-value="${s}" onclick="filterBy(this)">${s}</div>`).join("")}
   </div>
   <table>
-    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Type</th><th>Score</th><th>Status</th><th>Time</th></tr></thead>
+    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Source</th><th>Type</th><th>Score</th><th>Verdict</th><th>Flags</th><th>Status</th><th>Time</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <script>
-    function filterCat(cat, el) {
-      document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
-      document.querySelectorAll('.job-row').forEach(r => {
-        r.classList.toggle('visible', cat === 'all' || r.dataset.category === cat);
+    var active = { category: 'all', source: 'all' };
+    function filterBy(el) {
+      var kind = el.dataset.kind;
+      active[kind] = el.dataset.value;
+      document.querySelectorAll('.cat[data-kind="' + kind + '"]').forEach(function (c) {
+        c.classList.toggle('active', c === el);
+      });
+      document.querySelectorAll('.job-row').forEach(function (r) {
+        var okCat = active.category === 'all' || r.dataset.category === active.category;
+        var okSrc = active.source === 'all' || r.dataset.source === active.source;
+        r.classList.toggle('visible', okCat && okSrc);
       });
     }
-    document.querySelectorAll('.job-row').forEach(r => r.classList.add('visible'));
+    document.querySelectorAll('.job-row').forEach(function (r) { r.classList.add('visible'); });
   </script>`}
 
 </body>

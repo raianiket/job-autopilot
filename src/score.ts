@@ -41,14 +41,16 @@ ${profileSummary}
 Jobs:
 ${jobList}
 
+For each job also list red flags that are evident from the title, company, or location alone. Only flag what you can actually justify: severe seniority mismatch, location conflict with the candidate's preferences, vague or meaningless title, or an employer identity that looks like an agency mill or is unclear. Use an empty array when nothing stands out. This is a shallow pass, so do not speculate.
+
 Return ONLY a JSON array — no markdown, no explanation:
-[{"index":1,"score":8,"reason":"One sentence explaining the fit"}]
+[{"index":1,"score":8,"reason":"One sentence explaining the fit","red_flags":[]}]
 
 Score 1–10 where 10 = perfect match.`;
 
   const client = new Anthropic();
 
-  let scored: Array<{ index: number; score: number; reason: string }> = [];
+  let scored: Array<{ index: number; score: number; reason: string; red_flags?: string[] }> = [];
 
   try {
     console.log(`AI scoring ${jobs.length} job(s) with ${config.claudeModel}...`);
@@ -59,7 +61,7 @@ Score 1–10 where 10 = perfect match.`;
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
-    scored = JSON.parse(text) as typeof scored;
+    scored = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) as typeof scored;
   } catch (err) {
     console.warn("AI scoring failed — keeping all jobs:", (err as Error).message);
     return jobs;
@@ -69,8 +71,18 @@ Score 1–10 where 10 = perfect match.`;
 
   const annotated = jobs.map((job, i) => {
     const result = byIndex.get(i + 1);
-    return { ...job, score: result?.score ?? 10, reason: result?.reason ?? "" };
+    return {
+      ...job,
+      score: result?.score ?? 10,
+      reason: result?.reason ?? "",
+      red_flags: (result?.red_flags ?? []).join("; "),
+    };
   });
+
+  const flagged = annotated.filter((j) => j.red_flags).length;
+  if (flagged) {
+    console.log(`  ${flagged} job(s) carry at least one red flag.`);
+  }
 
   if (config.minJobScore > 0) {
     const before = annotated.length;

@@ -6,6 +6,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { BrowserContext, Page } from "playwright";
 import { createPage } from "./browser";
 import { getSupabaseClient } from "./supabase";
+import { fillGreenhouseForm } from "./portals/greenhouse";
+import { fillLeverForm } from "./portals/lever";
 import { AppConfig, ApplyResult, ApplyStatus, CandidateProfile, JobRow } from "./types";
 
 const RESULTS_CSV = path.resolve(process.cwd(), "results.csv");
@@ -938,6 +940,62 @@ async function handleApplicationForm(
   }
 }
 
+/**
+ * Greenhouse and Lever forms. Same contract as the LinkedIn path: fill everything
+ * we can, then stop at the submit button and wait for explicit confirmation.
+ */
+async function handlePortalApplication(
+  page: Page,
+  job: JobRow,
+  config: AppConfig,
+  profile: CandidateProfile
+): Promise<ApplyStatus> {
+  await page.goto(job.job_url, { waitUntil: "domcontentloaded", timeout: 45000 });
+  await page.waitForTimeout(2000);
+
+  // Greenhouse boards are frequently embedded in the company site via an iframe.
+  const frame =
+    (await page.locator("#grnhse_iframe").count())
+      ? page.frameLocator("#grnhse_iframe")
+      : null;
+  if (frame) {
+    console.log("  Greenhouse iframe detected — the embedded form needs manual handling.");
+    await page.screenshot({ path: `debug/portal-iframe-${Date.now()}.png` });
+    return "skipped";
+  }
+
+  const result =
+    job.source === "greenhouse"
+      ? await fillGreenhouseForm(page, profile, config)
+      : await fillLeverForm(page, profile, config);
+
+  console.log(`  Filled ${result.filled} AI-answered field(s); ${result.unanswered} still empty.`);
+
+  if (result.unanswered > 0 && config.autoSkipUnansweredRequired) {
+    await page.screenshot({ path: `debug/portal-unanswered-${Date.now()}.png` });
+    console.log("  Unanswered fields remain — skipping (autoSkipUnansweredRequired).");
+    return "skipped";
+  }
+
+  const submit = page
+    .locator('button[type="submit"], input[type="submit"], button:has-text("Submit application")')
+    .first();
+  if (!(await submit.count())) {
+    console.log("  No submit button found — skipping.");
+    return "skipped";
+  }
+
+  const answer = await promptWithTimeout("  Review the form. Submit? (y/N): ");
+  if (answer.trim().toLowerCase() !== "y") {
+    console.log("  Not confirmed — skipping.");
+    return "skipped";
+  }
+
+  await submit.click({ timeout: 10000 });
+  await page.waitForTimeout(5000);
+  return "applied";
+}
+
 export async function processJobs(
   jobs: JobRow[],
   config: AppConfig,
@@ -967,6 +1025,24 @@ export async function processJobs(
 
     console.log(`\n[${index + 1}/${max}] ${job.job_title} @ ${job.company}`);
     console.log(`  URL: ${job.job_url}`);
+
+    // Company job boards we can actually fill. Checked before the external skip
+    // below, since portal jobs are tagged external for the LinkedIn code path.
+    if (profile && (job.source === "greenhouse" || job.source === "lever")) {
+      const portalPage = await createPage(context);
+      let portalStatus: ApplyStatus = "failed";
+      try {
+        portalStatus = await handlePortalApplication(portalPage, job, config, profile);
+      } catch (err) {
+        console.warn(`  Portal application failed: ${(err as Error).message}`);
+      } finally {
+        await portalPage.close().catch(() => {});
+      }
+      writeResult({ job_url: job.job_url, status: portalStatus, timestamp: nowIso() });
+      console.log(`  Status: ${portalStatus}`);
+      if (index < max - 1) await delay(config.delayBetweenJobsSeconds * 1000);
+      continue;
+    }
 
     // Skip external jobs immediately — no page load needed
     if ((job.apply_type as string) === "external") {

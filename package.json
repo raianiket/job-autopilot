@@ -6,6 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "discover": "tsx src/discover.ts",
+    "evaluate": "tsx src/evaluate.ts",
+    "interview": "tsx src/interview.ts",
     "apply": "tsx src/index.ts",
     "dashboard": "tsx src/dashboard.ts",
     "post": "tsx src/post.ts",

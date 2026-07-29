@@ -1,0 +1,35 @@
+{
+  "_comment": "Company board tokens per ATS portal. Every token below was verified live against the public API. Add or remove freely - a token that stops working is skipped with a warning, it never aborts a run.",
+
+  "greenhouse": [
+    "stripe", "databricks", "datadog", "anthropic", "mongodb", "samsara",
+    "cloudflare", "brex", "elastic", "roblox", "scaleai", "pinterest",
+    "airbnb", "reddit", "twilio", "gitlab", "figma", "affirm", "lyft",
+    "coinbase", "flexport", "asana", "instacart", "robinhood", "gusto",
+    "vercel", "twitch", "faire", "chime", "duolingo", "peloton", "mercury",
+    "amplitude", "discord", "airtable", "dropbox", "coursera", "squarespace",
+    "calendly", "udemy",
+
+    "waymo", "verkada", "point72", "janestreet", "imc", "postman", "rubrik",
+    "nuro", "sofi", "checkr", "marqeta", "betterment", "launchdarkly",
+    "akunacapital", "pagerduty", "databento", "circleci", "lattice",
+    "oscar", "jumptrading", "10xgenomics",
+
+    "sumup", "hellofresh", "celonis", "n26", "monzo", "cabify", "gocardless",
+    "typeform", "trivago", "skyscanner",
+
+    "okta", "zscaler", "netskope", "smartsheet", "chainguard", "newrelic",
+    "tailscale", "tanium", "sumologic", "honeycomb", "orca"
+  ],
+
+  "lever": [
+    "spotify"
+  ],
+
+  "ashby": [
+    "ramp", "linear", "vanta", "replit", "posthog", "supabase", "render",
+    "resend", "warp", "browserbase", "modal", "cohere", "runway",
+    "elevenlabs", "synthesia", "notion", "airbyte", "temporal", "neon",
+    "railway"
+  ]
+}

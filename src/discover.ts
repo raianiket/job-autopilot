@@ -1,17 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createBrowser, createContext, createPage, waitForLinkedInLogin, isSessionValid, saveSession } from "./browser";
+import { createBrowser, createContext, createPage, waitForLinkedInLogin, isSessionValid, saveSession, isAttachedToExistingChrome } from "./browser";
 import { loadConfig } from "./config";
 import { loadProfile } from "./profile";
 import { scoreJobs } from "./score";
+import { fetchPortalJobs } from "./sources";
 import { JobRow } from "./types";
 
 interface CliArgs {
   config?: string;
   outFile: string;
-  maxJobs: number;
-  maxPerRole: number;
+  /** Undefined means "use the config value". */
+  maxJobs?: number;
+  maxPerRole?: number;
   roles: string[];
+  /** Fetch company job boards only, never opening a browser or touching LinkedIn. */
+  portalsOnly: boolean;
+  /** Skip company job boards, LinkedIn only (the original behaviour). */
+  skipPortals: boolean;
 }
 
 interface RawJob {
@@ -27,12 +33,16 @@ interface RawJob {
 function parseArgs(argv: string[]): CliArgs {
   let config: string | undefined;
   let outFile = "data/jobs.csv";
-  let maxJobs = 100;
-  let maxPerRole = 10;
+  let maxJobs: number | undefined;
+  let maxPerRole: number | undefined;
   const roles: string[] = [];
+  let portalsOnly = false;
+  let skipPortals = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
+    if (token === "--portals-only") { portalsOnly = true; continue; }
+    if (token === "--skip-portals") { skipPortals = true; continue; }
     if (token === "--config" && argv[i + 1]) { config = argv[i + 1]; i += 1; continue; }
     if (token === "--out" && argv[i + 1]) { outFile = argv[i + 1]; i += 1; continue; }
     if (token === "--max" && argv[i + 1]) {
@@ -51,7 +61,7 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  return { config, outFile, maxJobs, maxPerRole, roles };
+  return { config, outFile, maxJobs, maxPerRole, roles, portalsOnly, skipPortals };
 }
 
 function csvEscape(value: string): string {
@@ -61,7 +71,9 @@ function csvEscape(value: string): string {
 
 function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   const resolved = path.resolve(process.cwd(), outFile);
-  const rows = ["job_title,company,job_url,location,apply_type,role_category,linkedin_score,score,reason,posted_at,fetched_at"];
+  const rows = [
+    "job_title,company,job_url,location,apply_type,source,role_category,linkedin_score,score,reason,red_flags,posted_at,fetched_at,description",
+  ];
 
   for (const job of jobs) {
     rows.push(
@@ -71,12 +83,17 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
         csvEscape(job.job_url),
         csvEscape(job.location),
         csvEscape(job.apply_type ?? ""),
+        csvEscape(job.source ?? "linkedin"),
         csvEscape(job.role_category ?? ""),
         csvEscape(job.linkedin_score ?? ""),
         csvEscape(String(job.score ?? "")),
         csvEscape(job.reason ?? ""),
+        csvEscape(job.red_flags ?? ""),
         csvEscape(job.posted_at ?? ""),
         csvEscape(job.fetched_at ?? ""),
+        // Flattened to one line: the dashboard and the history dedupe both read
+        // this file line-by-line, so an embedded newline would split a record.
+        csvEscape((job.description ?? "").replace(/\s+/g, " ").trim()),
       ].join(",")
     );
   }
@@ -87,7 +104,32 @@ function writeJobsCsv(outFile: string, jobs: JobRow[]): void {
   const historyFile = path.resolve(path.dirname(resolved), "jobs_history.csv");
   const existingUrls = new Set<string>();
   const header = rows[0];
+
   if (fs.existsSync(historyFile)) {
+    const raw = fs.readFileSync(historyFile, "utf-8");
+    const lines = raw.split("\n");
+
+    // The column set grows over time. Appending new-schema rows under an old
+    // header silently misaligns every field, so migrate the file first.
+    if (lines[0]?.trim() && lines[0].trim() !== header) {
+      const oldCols = (lines[0].match(/"(?:[^"]|"")*"|[^,]+/g) ?? []).map((c) =>
+        c.replace(/^"|"$/g, "").trim()
+      );
+      const newCols = header.split(",");
+      const migrated = [header];
+
+      for (const line of lines.slice(1)) {
+        if (!line.trim()) continue;
+        const parts = line.match(/"(?:[^"]|"")*"/g) ?? [];
+        const byName = new Map<string, string>();
+        oldCols.forEach((col, i) => byName.set(col, parts[i] ?? '""'));
+        migrated.push(newCols.map((col) => byName.get(col) ?? '""').join(","));
+      }
+
+      fs.writeFileSync(historyFile, `${migrated.join("\n")}\n`, "utf-8");
+      console.log(`Migrated jobs_history.csv from ${oldCols.length} to ${newCols.length} columns.`);
+    }
+
     const existing = fs.readFileSync(historyFile, "utf-8").split("\n").slice(1);
     for (const line of existing) {
       if (!line.trim()) continue;
@@ -191,12 +233,36 @@ async function main(): Promise<void> {
     throw new Error("No preferredLocations in profile.json. Add at least one location.");
   }
 
+  const byUrl = new Map<string, JobRow>();
+
+  // ── Company job boards ─────────────────────────────────────────────────────
+  // Pure HTTP against public ATS APIs, so this runs before any browser or login.
+  if (!args.skipPortals && config.sources.portals.enabled) {
+    const portalJobs = await fetchPortalJobs(config, profile);
+    const scoredPortal = await scoreJobs(portalJobs, profile, config);
+    for (const job of scoredPortal) {
+      if (job.job_url) byUrl.set(job.job_url, job);
+    }
+    if (byUrl.size) {
+      writeJobsCsv(args.outFile, Array.from(byUrl.values()));
+      console.log(`✓ ${byUrl.size} portal job(s) written to CSV.`);
+    }
+  }
+
+  if (args.portalsOnly || !config.sources.linkedin.enabled) {
+    console.log(
+      `\nDone (portals only). ${byUrl.size} job(s) in ${path.resolve(process.cwd(), args.outFile)}`
+    );
+    return;
+  }
+
+  // ── LinkedIn ───────────────────────────────────────────────────────────────
   const browser = await createBrowser(config.headless, config.browserSlowMo);
   const context = await createContext(browser);
   const page = await createPage(context);
 
   try {
-    if (!isSessionValid()) {
+    if (!isSessionValid() && !isAttachedToExistingChrome()) {
       console.log("Opening LinkedIn login page...");
       await page.goto("https://www.linkedin.com/login", { waitUntil: "networkidle" });
 
@@ -225,10 +291,14 @@ async function main(): Promise<void> {
       await saveSession(context);
     }
 
-    console.log("Login detected. Starting job discovery...\n");
+    console.log("Login detected. Starting LinkedIn discovery...\n");
 
-    const byUrl = new Map<string, JobRow>();
     const countPerRole = new Map<string, number>();
+    // maxJobs caps the LinkedIn scrape only; portal jobs already in byUrl must not
+    // count against it or a big portal haul would skip LinkedIn entirely.
+    const portalCount = byUrl.size;
+    const maxJobs = args.maxJobs ?? config.sources.linkedin.maxJobs;
+    const maxPerRole = args.maxPerRole ?? config.sources.linkedin.maxPerRole;
 
     // Filter roles if --roles flag provided
     const activeRoles = args.roles.length
@@ -241,13 +311,13 @@ async function main(): Promise<void> {
 
     for (const role of activeRoles) {
       const roleCount = countPerRole.get(role) ?? 0;
-      if (roleCount >= args.maxPerRole) continue;
+      if (roleCount >= maxPerRole) continue;
 
       const roleBatch: JobRow[] = [];
 
       for (const location of locations) {
-        if (byUrl.size >= args.maxJobs) break;
-        if ((countPerRole.get(role) ?? 0) >= args.maxPerRole) break;
+        if (byUrl.size - portalCount >= maxJobs) break;
+        if ((countPerRole.get(role) ?? 0) >= maxPerRole) break;
 
         const query = new URLSearchParams({ keywords: role, location, sortBy: "DD" });
         const url = `https://www.linkedin.com/jobs/search/?${query.toString()}`;
@@ -259,7 +329,7 @@ async function main(): Promise<void> {
 
         const found = await extractJobsFromPage(page);
         for (const raw of found) {
-          if ((countPerRole.get(role) ?? 0) >= args.maxPerRole) break;
+          if ((countPerRole.get(role) ?? 0) >= maxPerRole) break;
 
           const job_url = normalizeLinkedInJobUrl(raw.job_url);
           if (byUrl.has(job_url)) continue;
@@ -276,6 +346,7 @@ async function main(): Promise<void> {
             job_url,
             location: raw.location || "Unknown Location",
             apply_type: raw.apply_type,
+            source: "linkedin",
             role_category: role,
             linkedin_score: raw.linkedin_score || "",
             posted_at: raw.posted_at || "",

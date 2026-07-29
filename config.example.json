@@ -1,14 +1,65 @@
 {
-  "maxApplicationsPerRun": 15,
-  "delayBetweenJobsSeconds": 30,
-  "resumePath": "./data/resume.pdf",
-  "profilePath": "./data/profile.json",
-  "maxFormSteps": 8,
-  "autoSkipUnansweredRequired": true,
   "phone": "+91XXXXXXXXXX",
   "email": "you@example.com",
+
+  "resumePath": "./data/documents/resume.pdf",
+  "coverLetterPath": "./data/documents/cover-letter.pdf",
+  "profilePath": "./data/profile.json",
+
   "claudeModel": "claude-opus-4-6",
   "minJobScore": 6,
+
+  "maxApplicationsPerRun": 15,
+  "delayBetweenJobsSeconds": 30,
+  "maxFormSteps": 8,
+  "autoSkipUnansweredRequired": true,
   "headless": false,
-  "browserSlowMo": 100
+  "browserSlowMo": 100,
+
+  "sources": {
+    "linkedin": {
+      "enabled": true,
+      "maxJobs": 100,
+      "maxPerRole": 10
+    },
+    "portals": {
+      "enabled": true,
+      "companiesPath": "./data/companies.json",
+      "concurrency": 5,
+      "maxPerCompany": 25,
+      "greenhouse": true,
+      "lever": true,
+      "ashby": true
+    }
+  },
+
+  "filters": {
+    "excludeTitlePatterns": ["intern", "internship", "trainee", "fresher", "graduate program"],
+    "allowRemote": true,
+    "requireLocationMatch": true
+  },
+
+  "evaluation": {
+    "enabled": true,
+    "weights": {
+      "skills_match": 0.3,
+      "seniority_fit": 0.2,
+      "location_fit": 0.15,
+      "tech_growth": 0.15,
+      "compensation": 0.1,
+      "company_health": 0.1
+    },
+    "thresholds": {
+      "strong_apply": 4.2,
+      "apply": 3.4,
+      "maybe": 2.5
+    },
+    "redFlagSkipCount": 3,
+    "maxDescriptionChars": 12000
+  },
+
+  "interview": {
+    "storiesPath": "./data/stories.json",
+    "questionsPerSession": 8
+  }
 }

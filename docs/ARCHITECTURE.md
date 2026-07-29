@@ -122,12 +122,12 @@ Apply loop            → ApplyResult { job_url, status, timestamp }
 **Decision:** If the Claude API call fails, return all jobs unfiltered.
 **Why:** Discovery should never fail due to an external API being unavailable. A missed filter is recoverable — a failed discover run means you start over.
 
-### 7. 24-hour session caching
-**Decision:** After login, `context.storageState()` is saved to `.linkedin-session.json` with a timestamp. Both `discover` and `apply` skip the login page if the file exists and is under 30 minutes old.
-**Why:** Running discover then apply back-to-back previously required two manual logins. The session file stores cookies + localStorage — same as a browser remembering you.
-**Security:** File is gitignored, never committed. TTL of 24h TTL limits exposure if the file is accidentally shared.
+### 6. 24-hour session caching
+**Decision:** After login, `context.storageState()` is saved to `.linkedin-session.json` with a timestamp. Both `discover` and `apply` skip the login page if the file exists and is under 24 hours old.
+**Why:** Running discover then apply back-to-back previously required two manual logins. The session file stores cookies + localStorage, same as a browser remembering you.
+**Security:** File is gitignored, never committed. The 24h TTL limits exposure if the file is accidentally shared.
 
-### 6. Service role key server-side only
+### 7. Service role key server-side only
 **Decision:** `SUPABASE_SERVICE_ROLE_KEY` is only used in `src/supabase.ts` (Node.js, never shipped to browser). The Vercel dashboard uses only the anon key.
 **Why:** Service role key bypasses RLS — if it leaks, anyone can read/write your database. Anon key is scoped to SELECT by RLS policy.
 
@@ -143,7 +143,7 @@ Apply loop            → ApplyResult { job_url, status, timestamp }
 | Claude API down during scoring | Caught, warns, returns all jobs unfiltered | Re-run discover once API is back |
 | Supabase insert fails | Warning logged, result still written to `results.csv` | Results not lost, can sync later |
 | Session timeout during apply | Playwright throws, job marked `failed` | Re-run apply — failed jobs are retried |
-| Session cache expired mid-run | `isSessionValid()` returns false at startup, login prompted | Login once, new session saved for 30 min |
+| Session cache expired mid-run | `isSessionValid()` returns false at startup, login prompted | Login once, new session saved for 24 hours |
 
 ## Scale Considerations
 

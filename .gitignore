@@ -3,11 +3,16 @@ dist/
 results.csv
 .playwright/
 
+# Runtime artifacts
+debug/
+pitch.pdf
+
 # Personal config & data — copy the .example files and fill in your details
 config.json
 data/*
 !data/.gitkeep
 !data/profile.example.json
+!data/companies.example.json
 .env
 
 # Local tooling — never commit

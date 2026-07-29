@@ -118,6 +118,9 @@ const SOURCE_COLORS: Record<string, string> = {
   greenhouse: "#3aab6d",
   lever: "#7b5cff",
   ashby: "#d97706",
+  instahyre: "#e11d48",
+  remotive: "#0891b2",
+  remoteok: "#65a30d",
 };
 
 function sourceBadge(source: string): string {
@@ -187,8 +190,19 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     return j?.apply_type === "easy_apply";
   }).length;
 
+  // Tabs are per source: with several thousand rows, source is the split that
+  // actually reduces the list to something browsable.
+  const sourceOf = (m: (typeof merged)[number]) => m.job?.source || "linkedin";
+  const sourceTabs = [
+    { value: "all", label: "All", count: merged.length },
+    ...[...new Set(merged.map(sourceOf))].sort().map((s) => ({
+      value: s,
+      label: s,
+      count: merged.filter((m) => sourceOf(m) === s).length,
+    })),
+  ];
+
   const categories = [...new Set(jobs.map((j) => j.role_category || "Other"))];
-  const sources = [...new Set(jobs.map((j) => j.source || "linkedin"))].sort();
   const flagged = jobs.filter((j) => j.red_flags.trim()).length;
   const portalJobs = jobs.filter((j) => (j.source || "linkedin") !== "linkedin").length;
 
@@ -201,9 +215,11 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     const titleCell = job
       ? `<a href="${url}" target="_blank"><strong>${job.job_title}</strong></a><br/><small>${job.company}</small>`
       : `<a href="${url}" target="_blank">${url}</a>`;
+    const status = result?.status ?? "pending";
+    const search = `${job?.job_title ?? ""} ${job?.company ?? ""} ${job?.location ?? ""}`.toLowerCase();
     return `
-    <tr class="job-row" data-category="${job?.role_category || "Other"}" data-source="${job?.source || "linkedin"}">
-      <td>${i + 1}</td>
+    <tr class="job-row" data-category="${job?.role_category || "Other"}" data-source="${job?.source || "linkedin"}" data-status="${status}" data-search="${search.replace(/"/g, "")}">
+      <td class="rownum">${i + 1}</td>
       <td>${titleCell}</td>
       <td style="color:#94a3b8;font-size:.8rem">${job?.location ?? ""}</td>
       <td>${sourceBadge(job?.source || "linkedin")}</td>
@@ -243,9 +259,27 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
     a { color: #60a5fa; text-decoration: none; } a:hover { text-decoration: underline; }
     .empty { text-align: center; padding: 3rem; color: #475569; }
     small { color: #64748b; }
-    .cats { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
-    .cat { background: #1e293b; border: 1px solid #334155; border-radius: .5rem; padding: .4rem .9rem; font-size: .8rem; cursor: pointer; color: #94a3b8; }
-    .cat.active { background: #6366f1; border-color: #6366f1; color: #fff; font-weight: 600; }
+    .tabs { display: flex; gap: .25rem; flex-wrap: wrap; margin-bottom: 1rem;
+            border-bottom: 1px solid #1e293b; padding-bottom: .5rem; }
+    .tab { --accent: #6366f1; display: flex; align-items: center; gap: .45rem;
+           background: transparent; border: 1px solid transparent; border-radius: .5rem;
+           padding: .45rem .85rem; font-size: .85rem; cursor: pointer; color: #94a3b8;
+           transition: background .15s, color .15s; text-transform: capitalize; }
+    .tab:hover { background: #1e293b; color: #e2e8f0; }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    .tab-count { background: rgba(148,163,184,.18); border-radius: 9999px;
+                 padding: .05rem .45rem; font-size: .7rem; font-weight: 600; }
+    .tab.active .tab-count { background: rgba(255,255,255,.25); }
+
+    .toolbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+    .toolbar input, .toolbar select {
+      background: #1e293b; border: 1px solid #334155; border-radius: .5rem;
+      padding: .45rem .7rem; font-size: .82rem; color: #e2e8f0; font-family: inherit;
+    }
+    .toolbar input { flex: 1; min-width: 220px; }
+    .toolbar input:focus, .toolbar select:focus { outline: none; border-color: #6366f1; }
+    .count { color: #64748b; font-size: .78rem; margin-left: auto; }
+
     .job-row { display: none; }
     .job-row.visible { display: table-row; }
   </style>
@@ -269,33 +303,92 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
   ${merged.length === 0
     ? `<div class="empty">No jobs yet. Run <code>npm run discover</code> first.</div>`
     : `
-  <div class="cats" id="cat-filters">
-    <div class="cat active" data-kind="category" data-value="all" onclick="filterBy(this)">All (${merged.length})</div>
-    ${categories.map((c) => `<div class="cat" data-kind="category" data-value="${c}" onclick="filterBy(this)">${c}</div>`).join("")}
+  <div class="tabs">
+    ${sourceTabs
+      .map(
+        (t, i) =>
+          `<div class="tab${i === 0 ? " active" : ""}" data-value="${t.value}" onclick="filterBy(this)" style="${t.value === "all" ? "" : `--accent:${SOURCE_COLORS[t.value] ?? "#475569"}`}">${t.label}<span class="tab-count">${t.count}</span></div>`
+      )
+      .join("")}
   </div>
-  <div class="cats" id="src-filters">
-    <div class="cat active" data-kind="source" data-value="all" onclick="filterBy(this)">All sources</div>
-    ${sources.map((s) => `<div class="cat" data-kind="source" data-value="${s}" onclick="filterBy(this)">${s}</div>`).join("")}
+
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Search title, company, or location..." oninput="applyFilters()" autocomplete="off"/>
+    <select id="statusSel" onchange="applyFilters()">
+      <option value="all">All statuses</option>
+      <option value="pending">Pending</option>
+      <option value="applied">Applied</option>
+      <option value="skipped">Skipped</option>
+      <option value="failed">Failed</option>
+    </select>
+    <select id="catSel" onchange="applyFilters()">
+      <option value="all">All roles</option>
+      ${categories.map((c) => `<option value="${c}">${c}</option>`).join("")}
+    </select>
+    <span id="count" class="count"></span>
   </div>
+
   <table>
     <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Source</th><th>Type</th><th>Score</th><th>Verdict</th><th>Flags</th><th>Status</th><th>Time</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
+  <div id="noresults" class="empty" style="display:none">Nothing matches these filters.</div>
+
   <script>
-    var active = { category: 'all', source: 'all' };
-    function filterBy(el) {
-      var kind = el.dataset.kind;
-      active[kind] = el.dataset.value;
-      document.querySelectorAll('.cat[data-kind="' + kind + '"]').forEach(function (c) {
-        c.classList.toggle('active', c === el);
-      });
-      document.querySelectorAll('.job-row').forEach(function (r) {
-        var okCat = active.category === 'all' || r.dataset.category === active.category;
-        var okSrc = active.source === 'all' || r.dataset.source === active.source;
-        r.classList.toggle('visible', okCat && okSrc);
-      });
+    // The page meta-refreshes every 15s, which would otherwise reset every
+    // filter mid-browse. State lives in sessionStorage and is restored on load.
+    var STATE_KEY = 'jobAutopilotFilters';
+    var saved = {};
+    try { saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || '{}'); } catch (e) {}
+    var activeSource = saved.source || 'all';
+
+    function saveState() {
+      try {
+        sessionStorage.setItem(STATE_KEY, JSON.stringify({
+          source: activeSource,
+          status: document.getElementById('statusSel').value,
+          cat: document.getElementById('catSel').value,
+          q: document.getElementById('q').value
+        }));
+      } catch (e) {}
     }
-    document.querySelectorAll('.job-row').forEach(function (r) { r.classList.add('visible'); });
+
+    function filterBy(el) {
+      activeSource = el.dataset.value;
+      document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t === el); });
+      applyFilters();
+    }
+
+    function applyFilters() {
+      var q = document.getElementById('q').value.trim().toLowerCase();
+      var status = document.getElementById('statusSel').value;
+      var cat = document.getElementById('catSel').value;
+      var shown = 0;
+
+      document.querySelectorAll('.job-row').forEach(function (r) {
+        var ok =
+          (activeSource === 'all' || r.dataset.source === activeSource) &&
+          (status === 'all' || r.dataset.status === status) &&
+          (cat === 'all' || r.dataset.category === cat) &&
+          (!q || r.dataset.search.indexOf(q) !== -1);
+        r.classList.toggle('visible', ok);
+        if (ok) { shown++; r.querySelector('.rownum').textContent = shown; }
+      });
+
+      document.getElementById('count').textContent = shown + ' of ${merged.length}';
+      document.getElementById('noresults').style.display = shown ? 'none' : 'block';
+      saveState();
+    }
+
+    // Restore the previous selection before the first filter pass.
+    if (saved.status) document.getElementById('statusSel').value = saved.status;
+    if (saved.cat) document.getElementById('catSel').value = saved.cat;
+    if (saved.q) document.getElementById('q').value = saved.q;
+    document.querySelectorAll('.tab').forEach(function (t) {
+      t.classList.toggle('active', t.dataset.value === activeSource);
+    });
+
+    applyFilters();
   </script>`}
 
 </body>

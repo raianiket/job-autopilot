@@ -45,6 +45,29 @@
   const save = (key, val) => sessionStorage.setItem(key, JSON.stringify(val));
 
   /**
+   * LinkedIn's <time datetime> attribute on a search card carries only a calendar
+   * date, but the visible text says "3 hours ago" / "25 minutes ago". Converting
+   * that relative text to an absolute instant is the only way to get better than
+   * day precision out of the search results.
+   */
+  function parseRelativeAge(cardText) {
+    const m = /(\d+)\s*(minute|hour|day|week|month)s?\s+ago/i.exec(cardText || "");
+    if (!m) return "";
+    const n = Number(m[1]);
+    const unit = m[2].toLowerCase();
+    const perUnit = {
+      minute: 60000,
+      hour: 3600000,
+      day: 86400000,
+      week: 604800000,
+      month: 2592000000,
+    };
+    const delta = n * perUnit[unit];
+    if (!delta) return "";
+    return new Date(Date.now() - delta).toISOString();
+  }
+
+  /**
    * Reads every currently-rendered card. LinkedIn virtualizes the list, so cards
    * only have contents while near the viewport — this must be called repeatedly
    * during the scroll, never once at the end.
@@ -77,7 +100,11 @@
           txt(card.querySelector('[class*="metadata"] li')) ||
           location,
         apply_type: /easy apply/i.test(cardText) ? "easy_apply" : "external",
-        posted_at: timeEl ? timeEl.getAttribute("datetime") || "" : "",
+        // Prefer the relative text: it has hour/minute precision, whereas the
+        // datetime attribute is only ever a calendar date.
+        posted_at:
+          parseRelativeAge(cardText) ||
+          (timeEl ? timeEl.getAttribute("datetime") || "" : ""),
         role_category: role,
       };
       added += 1;

@@ -143,18 +143,51 @@ function verdictBadge(verdict: string, fit: string): string {
   return `<span class="badge" style="background:${color}">${label}${score}</span>`;
 }
 
-/** "Posted" reads better as an age than a date, with the exact date on hover. */
+/**
+ * Age at the finest precision the source actually provides: minutes under an
+ * hour, then hours, then days. LinkedIn only publishes a calendar date on the
+ * search card, so those rows can never be more precise than a day - showing a
+ * fabricated hour count for them would be worse than admitting the granularity.
+ */
 function postedCell(posted: string): string {
-  if (!posted.trim()) return `<span style="color:#475569">—</span>`;
-  const then = new Date(posted);
+  const raw = posted.trim();
+  if (!raw) return `<span style="color:#475569">—</span>`;
+
+  const then = new Date(raw);
   if (Number.isNaN(then.getTime())) return `<span style="color:#475569">—</span>`;
 
-  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
-  const label =
-    days <= 0 ? "today" : days === 1 ? "1d ago" : days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+  const hasClockTime = /T\d{2}:/.test(raw);
+  const ms = Date.now() - then.getTime();
+  const mins = Math.floor(ms / 60000);
+  const hours = Math.floor(ms / 3600000);
+  const days = Math.floor(ms / 86400000);
+
+  let label: string;
+  if (!hasClockTime) {
+    // Date-only source: days is the honest floor.
+    label = days <= 0 ? "today" : days === 1 ? "1d ago" : days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+  } else if (mins < 1) {
+    label = "just now";
+  } else if (mins < 60) {
+    label = `${mins}m ago`;
+  } else if (hours < 24) {
+    label = `${hours}h ago`;
+  } else if (days < 7) {
+    const rem = hours - days * 24;
+    label = rem ? `${days}d ${rem}h ago` : `${days}d ago`;
+  } else if (days < 30) {
+    label = `${days}d ago`;
+  } else {
+    label = `${Math.floor(days / 30)}mo ago`;
+  }
+
   // Fresh postings are worth spotting at a glance.
-  const color = days <= 1 ? "#22c55e" : days <= 7 ? "#94a3b8" : "#64748b";
-  return `<span title="${then.toDateString()}" style="color:${color};font-size:.78rem;white-space:nowrap">${label}</span>`;
+  const color = hours < 24 ? "#22c55e" : days <= 7 ? "#94a3b8" : "#64748b";
+  const tip = hasClockTime
+    ? then.toLocaleString()
+    : `${then.toDateString()} (source gives the date only, no time of day)`;
+
+  return `<span title="${tip}" style="color:${color};font-size:.78rem;white-space:nowrap">${label}</span>`;
 }
 
 /** Red flags are semicolon-joined; show a count with the full list on hover. */

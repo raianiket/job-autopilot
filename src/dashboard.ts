@@ -64,7 +64,19 @@ const server = http.createServer((req, res) => {
   res.end("Not found");
 });
 
-server.listen(PORT, () => {
+/**
+ * Bound to loopback on purpose. There is no authentication on any route, so
+ * listening on 0.0.0.0 would let anyone on the same network read every job and
+ * its full description. Set DASHBOARD_HOST=0.0.0.0 to expose it deliberately.
+ */
+const HOST = process.env.DASHBOARD_HOST ?? "127.0.0.1";
+
+server.listen(PORT, HOST, () => {
   console.log(`Dashboard running at http://localhost:${PORT}`);
+  if (HOST !== "127.0.0.1") {
+    console.warn(
+      `Warning: bound to ${HOST}, so this is reachable from your network with no password.`
+    );
+  }
   exec(`open http://localhost:${PORT}`, () => {});
 });

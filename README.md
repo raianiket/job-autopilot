@@ -43,8 +43,9 @@ cp data/profile.example.json data/profile.json
 
 | File | What it is |
 |---|---|
-| `data/resume.pdf` | Your resume — uploaded to every application |
-| `data/profile.json` | Your details — name, roles, locations, cover letter, etc. |
+| `data/AniketKumar2.pdf` | Resume — uploaded to every Easy Apply application |
+| `data/CoverLetter1.pdf` | Cover letter — submitted alongside the resume |
+| `data/profile.json` | Your details — name, roles, locations, cover letter text, etc. |
 
 ---
 

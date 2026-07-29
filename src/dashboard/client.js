@@ -78,6 +78,17 @@
     company: function (a, b) { return a.company.localeCompare(b.company); },
   };
 
+  /**
+   * Locations arrive as multi-region strings like
+   * "Europe - Remote; United Kingdom - Remote; United States - Remote", which
+   * swamp the row. Show the first and count the rest.
+   */
+  function shortLocation(loc) {
+    var parts = loc.split(/;|•/).map(function (p) { return p.trim(); }).filter(Boolean);
+    if (parts.length <= 1) return esc(loc);
+    return esc(parts[0]) + '<span class="more">+' + (parts.length - 1) + "</span>";
+  }
+
   function renderRow(r) {
     var a = ageOf(r);
     var railCss = rail(r);
@@ -85,7 +96,7 @@
 
     var bits = [];
     bits.push('<span class="co">' + esc(r.company) + "</span>");
-    if (r.location) bits.push('<span class="sep">/</span>' + esc(r.location));
+    if (r.location) bits.push('<span class="loc">' + shortLocation(r.location) + "</span>");
     if (r.apply_type === "easy_apply") bits.push(pill("easy apply", COLORS.theme.accent));
     if (r.verdict) {
       bits.push(
@@ -96,10 +107,14 @@
     if (r.red_flags.length) {
       bits.push('<span class="flag" title="' + esc(r.red_flags.join(" • ")) + '">⚑ ' + r.red_flags.length + "</span>");
     }
-    bits.push('<span class="st" style="color:' + (COLORS.status[r.status] || COLORS.theme.faint) + '">' + esc(r.status) + "</span>");
+    // Every row is "pending" until acted on, so printing it 323 times says
+    // nothing. Only an actual outcome earns a chip.
+    if (r.status !== "pending") {
+      bits.push('<span class="st" style="color:' + (COLORS.status[r.status] || COLORS.theme.faint) + '">' + esc(r.status) + "</span>");
+    }
 
     var head =
-      '<button class="row" style="' + railCss + '" aria-expanded="' + expanded + '" data-url="' + esc(r.url) + '">' +
+      '<button class="row' + (r.age_hours !== null && r.age_hours < 24 ? ' hot' : '') + '" style="' + railCss + '" aria-expanded="' + expanded + '" data-url="' + esc(r.url) + '">' +
         '<span class="l1">' +
           '<span class="t">' + esc(r.title) + "</span>" +
           '<span class="age" style="color:' + a.color + '" title="' + esc(a.title) + '">' + esc(a.text) + "</span>" +
@@ -129,9 +144,38 @@
     return head + '<div class="detail" style="' + railCss + '">' + d + "</div>";
   }
 
+  /** Buckets that make the perishability of a posting structural, not just tinted. */
+  function bucketOf(r) {
+    var h = r.age_hours;
+    if (h === null) return "No posting date";
+    if (h < 24) return "Today";
+    if (h < 72) return "Last 3 days";
+    if (h < 168) return "This week";
+    if (h < 720) return "This month";
+    return "Older than a month";
+  }
+
   function render() {
     var shown = rows.filter(matches).sort(SORTS[state.sort] || SORTS.fresh);
-    $("list").innerHTML = shown.map(renderRow).join("");
+
+    var html = "";
+    if (state.sort === "fresh") {
+      // Group headings only make sense while sorted by age.
+      var current = null;
+      shown.forEach(function (r) {
+        var b = bucketOf(r);
+        if (b !== current) {
+          current = b;
+          var n = shown.filter(function (x) { return bucketOf(x) === b; }).length;
+          html += '<div class="grp"><span>' + b + "</span><i>" + n + "</i></div>";
+        }
+        html += renderRow(r);
+      });
+    } else {
+      html = shown.map(renderRow).join("");
+    }
+
+    $("list").innerHTML = html;
     $("count").textContent = shown.length + " of " + rows.length;
     $("empty").hidden = shown.length > 0;
   }

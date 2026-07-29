@@ -39,6 +39,8 @@ body{background:var(--ink);color:var(--text);font-family:var(--sans);
 .card.lead .n{color:var(--accent)}
 .card.warn .n{color:var(--warn)}
 .card.fresh .n{color:var(--fresh)}
+.card.zero{opacity:.5}
+.card.zero .n{color:var(--faint)}
 
 /* Tabs ------------------------------------------------------------------ */
 .tabs{display:flex;gap:.15rem;flex-wrap:wrap;margin-bottom:.85rem;
@@ -64,16 +66,27 @@ body{background:var(--ink);color:var(--text);font-family:var(--sans);
 .row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .bar .count{font-family:var(--mono);font-size:.72rem;color:var(--faint);margin-left:auto}
 
+/* Time-group dividers: freshness as structure, not only as tint ---------- */
+.grp{display:flex;align-items:center;gap:.6rem;margin:1.1rem 0 .35rem;
+  font-size:.66rem;text-transform:uppercase;letter-spacing:.12em;color:var(--faint)}
+.grp:first-child{margin-top:0}
+.grp::after{content:"";flex:1;height:1px;background:var(--edge)}
+.grp i{font-family:var(--mono);font-style:normal;order:3;color:var(--faint)}
+
 /* Rows: two lines, rail encodes source hue + freshness opacity ---------- */
 .list{display:flex;flex-direction:column;gap:2px}
 .row{display:block;width:100%;text-align:left;background:var(--raised);
-  border:1px solid transparent;border-left:3px solid var(--rail,var(--faint));
-  border-radius:0 7px 7px 0;padding:.6rem .85rem;cursor:pointer;
+  border:1px solid transparent;border-left:4px solid var(--rail,var(--faint));
+  border-radius:0 7px 7px 0;padding:.55rem .85rem;cursor:pointer;
   font-family:inherit;color:inherit;font-size:inherit;
   transition:background .12s,border-color .12s}
 .row:hover{background:var(--raised-hi)}
+.row.hot{box-shadow:inset 3px 0 0 -1px var(--rail)}
 .row[aria-expanded="true"]{background:var(--raised-hi);border-color:var(--edge);
   border-left-color:var(--rail,var(--faint))}
+.loc{color:var(--faint)}
+.more{font-family:var(--mono);font-size:.66rem;color:var(--faint);
+  border:1px solid var(--edge);border-radius:3px;padding:0 .2rem;margin-left:.25rem}
 .l1{display:flex;align-items:baseline;gap:.6rem}
 .l1 .t{font-weight:600;letter-spacing:-0.01em;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
@@ -121,7 +134,9 @@ body{background:var(--ink);color:var(--text);font-family:var(--sans);
 }
 
 function card(n: number, label: string, sub: string, cls = ""): string {
-  return `<div class="card ${cls}"><div class="n">${n}</div>
+  // A zero is not news; dim it so the numbers that matter carry the eye.
+  const tone = n === 0 ? "zero" : cls;
+  return `<div class="card ${tone}"><div class="n">${n}</div>
     <div class="k">${label}</div><div class="sub">${sub}</div></div>`;
 }
 

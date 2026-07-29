@@ -74,60 +74,84 @@ function normalizeLinkedInJobUrl(url: string): string {
 }
 
 
-async function scrollResults(page: Awaited<ReturnType<typeof createPage>>): Promise<void> {
-  for (let i = 0; i < 6; i += 1) {
-    await page.mouse.wheel(0, 2500);
-    await page.waitForTimeout(700);
-  }
-}
-
-async function extractJobsFromPage(
+/**
+ * LinkedIn virtualizes the results list: the <li> elements all exist, but their
+ * contents only render while near the viewport and unrender once scrolled past.
+ * Scrolling first and extracting afterwards therefore only ever captures the
+ * handful of cards still rendered, which is why this used to return ~7 jobs per
+ * search regardless of how many matched. So each card is scrolled into view and
+ * read immediately, keyed on data-occludable-job-id.
+ */
+async function harvestJobsFromPage(
   page: Awaited<ReturnType<typeof createPage>>
 ): Promise<RawJob[]> {
   // Pass as a string so esbuild never touches it and cannot inject __name helpers.
-  return page.evaluate(`(function () {
+  return page.evaluate(`(async function () {
     function text(el) {
       return el ? String(el.textContent || '').replace(/\\s+/g, ' ').trim() : '';
     }
-    var anchors = Array.from(document.querySelectorAll('a[href*="/jobs/view/"]'));
-    var jobs = [];
-    var seen = new Set();
-    for (var i = 0; i < anchors.length; i++) {
-      var anchor = anchors[i];
-      var href = anchor.getAttribute('href');
-      if (!href) continue;
-      var key = href.split('?')[0];
-      if (seen.has(key)) continue;
-      seen.add(key);
-      var card = anchor.closest('li, div.job-card-container, div.jobs-search-results__list-item');
-      var title =
-        text(anchor.querySelector("span[aria-hidden='true']")) ||
-        text(anchor.querySelector('span')) ||
-        text(card && card.querySelector('h3 span, h3')) ||
-        text(anchor) ||
-        'Unknown Title';
-      var company =
-        text(card && card.querySelector('.job-card-container__primary-description')) ||
-        text(card && card.querySelector('.base-search-card__subtitle')) ||
-        text(card && card.querySelector('h4 a, h4')) ||
-        text(card && card.querySelector('[class*="subtitle"], [class*="company"]')) ||
-        'Unknown Company';
-      var location =
-        text(card && card.querySelector('.job-search-card__location')) ||
-        text(card && card.querySelector('[class*="location"]')) ||
-        text(card && card.querySelector('[class*="metadata"] span')) ||
-        'Unknown Location';
-      var cardText = card ? (card.textContent || '') : '';
-      var easyApply = /easy apply/i.test(cardText) ||
-        !!(card && card.querySelector('[aria-label*="Easy Apply" i], .job-card-container__apply-method, [class*="easy-apply"], li-icon[type="linkedin-bug"]'));
-      var timeEl = card && card.querySelector('time[datetime]');
-      var posted_at = timeEl ? (timeEl.getAttribute('datetime') || '') : '';
-      // LinkedIn shows a match score like "Skills match" or a % badge
-      var matchEl = card && card.querySelector('[class*="match"], [class*="skill-match"], [aria-label*="match" i], [aria-label*="skills" i]');
-      var linkedin_score = matchEl ? (matchEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
-      jobs.push({ job_url: href.trim(), job_title: title, company: company, location: location, apply_type: easyApply ? 'easy_apply' : 'external', posted_at: posted_at, linkedin_score: linkedin_score });
+    var acc = {};
+
+    function grabRendered() {
+      var cards = document.querySelectorAll('li[data-occludable-job-id]');
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var id = card.getAttribute('data-occludable-job-id');
+        if (!id || acc[id]) continue;
+
+        var anchor = card.querySelector('a[href*="/jobs/view/"]');
+        var title =
+          text(anchor && anchor.querySelector("span[aria-hidden='true']")) ||
+          text(card.querySelector('[class*="job-card-list__title"]')) ||
+          text(anchor);
+        // An unrendered card has no title yet; skip it and catch it on a later pass.
+        if (!title) continue;
+
+        var company =
+          text(card.querySelector('.artdeco-entity-lockup__subtitle')) ||
+          text(card.querySelector('[class*="job-card-container__primary-description"]')) ||
+          text(card.querySelector('[class*="subtitle"], [class*="company"]')) ||
+          'Unknown Company';
+        var location =
+          text(card.querySelector('.job-card-container__metadata-item')) ||
+          text(card.querySelector('[class*="metadata"] li')) ||
+          text(card.querySelector('[class*="metadata"] span')) ||
+          'Unknown Location';
+
+        var cardText = card.textContent || '';
+        var easyApply = /easy apply/i.test(cardText) ||
+          !!card.querySelector('[aria-label*="Easy Apply" i], [class*="easy-apply"]');
+        var timeEl = card.querySelector('time[datetime]');
+        var matchEl = card.querySelector('[class*="skill-match"], [aria-label*="match" i]');
+
+        acc[id] = {
+          job_url: 'https://www.linkedin.com/jobs/view/' + id + '/',
+          job_title: title,
+          company: company,
+          location: location,
+          apply_type: easyApply ? 'easy_apply' : 'external',
+          posted_at: timeEl ? (timeEl.getAttribute('datetime') || '') : '',
+          linkedin_score: matchEl ? text(matchEl) : ''
+        };
+      }
     }
-    return jobs;
+
+    // Walk the list, reading each card while it is rendered. Two passes, because
+    // reaching the bottom makes LinkedIn append another batch of cards.
+    for (var pass = 0; pass < 2; pass++) {
+      var cards = document.querySelectorAll('li[data-occludable-job-id]');
+      if (!cards.length) break;
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].scrollIntoView({ block: 'center' });
+        await new Promise(function (r) { setTimeout(r, 180); });
+        grabRendered();
+      }
+      await new Promise(function (r) { setTimeout(r, 1200); });
+      grabRendered();
+      if (document.querySelectorAll('li[data-occludable-job-id]').length === cards.length) break;
+    }
+
+    return Object.keys(acc).map(function (k) { return acc[k]; });
   })()`);
 }
 
@@ -253,9 +277,8 @@ async function main(): Promise<void> {
         console.log(`[${role}] Searching ${location}...`);
         await page.goto(url, { waitUntil: "domcontentloaded" });
         await page.waitForTimeout(1800);
-        await scrollResults(page);
 
-        const found = await extractJobsFromPage(page);
+        const found = await harvestJobsFromPage(page);
         for (const raw of found) {
           if ((countPerRole.get(role) ?? 0) >= maxPerRole) break;
 

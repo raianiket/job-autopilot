@@ -143,6 +143,20 @@ function verdictBadge(verdict: string, fit: string): string {
   return `<span class="badge" style="background:${color}">${label}${score}</span>`;
 }
 
+/** "Posted" reads better as an age than a date, with the exact date on hover. */
+function postedCell(posted: string): string {
+  if (!posted.trim()) return `<span style="color:#475569">—</span>`;
+  const then = new Date(posted);
+  if (Number.isNaN(then.getTime())) return `<span style="color:#475569">—</span>`;
+
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  const label =
+    days <= 0 ? "today" : days === 1 ? "1d ago" : days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+  // Fresh postings are worth spotting at a glance.
+  const color = days <= 1 ? "#22c55e" : days <= 7 ? "#94a3b8" : "#64748b";
+  return `<span title="${then.toDateString()}" style="color:${color};font-size:.78rem;white-space:nowrap">${label}</span>`;
+}
+
 /** Red flags are semicolon-joined; show a count with the full list on hover. */
 function redFlagCell(flags: string): string {
   if (!flags.trim()) return "";
@@ -227,6 +241,7 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
       <td>${job?.score ? `<strong style="color:#6366f1">${job.score}/10</strong>` : ""}</td>
       <td>${verdictBadge(job?.verdict ?? "", job?.fit_score ?? "")}</td>
       <td>${redFlagCell(job?.red_flags ?? "")}</td>
+      <td>${postedCell(job?.posted_at ?? "")}</td>
       <td>${statusCell}</td>
       <td style="font-size:.75rem;color:#94a3b8;white-space:nowrap">${timeCell}</td>
     </tr>`;
@@ -329,7 +344,7 @@ function buildHtml(results: ResultRow[], jobs: JobRow[]): string {
   </div>
 
   <table>
-    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Source</th><th>Type</th><th>Score</th><th>Verdict</th><th>Flags</th><th>Status</th><th>Time</th></tr></thead>
+    <thead><tr><th>#</th><th>Job</th><th>Location</th><th>Source</th><th>Type</th><th>Score</th><th>Verdict</th><th>Flags</th><th>Posted</th><th>Status</th><th>Updated</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <div id="noresults" class="empty" style="display:none">Nothing matches these filters.</div>

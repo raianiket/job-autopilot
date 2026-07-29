@@ -12,7 +12,9 @@
     "dashboard": "tsx src/dashboard.ts",
     "post": "tsx src/post.ts",
     "build": "tsc -p tsconfig.json",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "import": "tsx src/importJobs.ts",
+    "harvest": "tsx src/harvest.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

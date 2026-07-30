@@ -32,11 +32,13 @@ flowchart LR
 
 | Command | What it does |
 |---|---|
-| `npm run discover` | Finds jobs on LinkedIn **and** 103 company boards, scores each one |
-| `npm run evaluate` | Deep-scores against a weighted rubric, flags ghost/scam postings |
+| `npm run discover` | Finds jobs on LinkedIn, 103 company boards, and 3 aggregators |
+| `npm run harvest` | Collects LinkedIn jobs through a browser you are already signed into |
+| `npm run import` | Ingests harvested jobs into the CSVs |
+| `npm run evaluate` | Scores each job on six weighted dimensions, flags ghost and scam postings |
 | `npm run apply` | Fills LinkedIn Easy Apply, Greenhouse, and Lever forms |
 | `npm run interview` | STAR story bank, role-specific prep, mock interview with feedback |
-| `npm run dashboard` | Live web UI at `localhost:3000` |
+| `npm run dashboard` | Local web UI at `localhost:3000` |
 
 ---
 
@@ -56,11 +58,22 @@ flowchart TB
     LI["LinkedIn<br/>role x location search"]
   end
 
+  subgraph AGG["Aggregators (no browser, no login)"]
+    IH["Instahyre<br/>~14k India jobs"]
+    RM["Remotive<br/>remote, full JD"]
+    RO["RemoteOK<br/>~100 remote"]
+  end
+
   GH --> M{merge + dedupe<br/>by URL}
   LV --> M
   ASH --> M
   LI --> M
+  IH --> M
+  RM --> M
+  RO --> M
   M --> SCORE[AI score] --> CSV[(data/jobs.csv)]
+
+  style AGG fill:#052e16,color:#fff
 
   style HTTP fill:#052e16,color:#fff
   style BROWSER fill:#1e3a5f,color:#fff
@@ -147,6 +160,35 @@ flowchart TD
 
 ---
 
+## Dashboard
+
+`npm run dashboard` opens a local, dark, monospace-numbered triage view at `localhost:3000` — not a report, a queue of what to act on today.
+
+- **A left rail on every row** encodes two things at once: hue is the source (LinkedIn blue, Greenhouse green, Instahyre pink...), opacity is how fresh the posting is. A glance down the edge tells you where jobs came from and how stale they are, with no need to read a column.
+- **Time-group dividers** — Today / Last 3 days / This week / This month / Older / No posting date — so freshness is structural, not just a tint, while sorted by age.
+- **Click a row to expand it** and see the `reason` the evaluator gave and the full job description — both already collected on every job, previously invisible anywhere in the UI.
+- **Tabs per source**, plus free-text search and status/role filters.
+- **A triage strip up top**: ready to apply, posted today, applied, red flagged, no date — zero counts dim out instead of competing for attention with the numbers that matter.
+
+The client polls `/api/jobs` every 15s and only replaces the row list, so filters, scroll position, and expanded rows all survive a refresh. The endpoint ETags its response, so a poll that finds nothing new costs a `304` with an empty body rather than resending the dataset.
+
+Three routes, no authentication on any of them:
+
+| Route | Returns |
+|---|---|
+| `/` | The shell — palette, layout, triage strip, filter controls |
+| `/api/jobs` | `{ rows, summary }` JSON the client polls. Descriptions are truncated to what an expanded row renders (1600 chars); the response is ETag'd so a poll that finds nothing new gets a `304` with an empty body instead of the full payload |
+| `/app.js` | The client script, served from `src/dashboard/client.js` so it stays a real, lintable file rather than an inline string |
+
+**It only listens on `127.0.0.1`.** Because no route authenticates, binding to every interface would let anyone on the same network open `/api/jobs` and read every job and its full description. Set `DASHBOARD_HOST=0.0.0.0` to expose it deliberately — the startup log warns when you do.
+
+```bash
+DASHBOARD_PORT=4000 npm run dashboard    # different port
+DASHBOARD_HOST=0.0.0.0 npm run dashboard # reachable from your LAN — no auth, use with care
+```
+
+---
+
 ## Setup
 
 ```bash
@@ -176,6 +218,9 @@ data/
 |---|---|
 | `ANTHROPIC_API_KEY` | AI scoring, evaluation, form answers, interview tools |
 | `LINKEDIN_PASSWORD` | Pre-fills the login form |
+| `LINKEDIN_SESSION_DAYS` | Override the 14-day cached-session TTL |
+| `CHROME_CDP_PORT` | Override the 9222 default for attaching to a dedicated Chrome |
+| `DASHBOARD_PORT` / `DASHBOARD_HOST` | Dashboard listen address, default `127.0.0.1:3000` |
 | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | Live dashboard sync |
 
 Everything except the interview tools works without an API key.
@@ -212,7 +257,9 @@ Everything below is optional and shown with its default. See `config.example.jso
   "sources": {
     "linkedin": { "enabled": true, "maxJobs": 100, "maxPerRole": 10 },
     "portals":  { "enabled": true, "concurrency": 5, "maxPerCompany": 25,
-                  "greenhouse": true, "lever": true, "ashby": true }
+                  "greenhouse": true, "lever": true, "ashby": true },
+    "aggregators": { "enabled": true, "maxPages": 20, "limitPerQuery": 50,
+                      "instahyre": true, "remotive": true, "remoteok": true }
   },
   "filters": {
     "excludeTitlePatterns": ["intern", "trainee", "fresher"],

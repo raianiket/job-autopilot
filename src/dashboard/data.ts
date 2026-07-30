@@ -27,8 +27,6 @@ export interface DashboardRow {
   reason: string;
   red_flags: string[];
   posted_at: string;
-  /** Hours since posting, or null when the source publishes no date. */
-  age_hours: number | null;
   /** True when posted_at carries a clock time, not just a calendar date. */
   precise_age: boolean;
   description: string;
@@ -100,7 +98,7 @@ export function loadRows(): DashboardRow[] {
 
     const result = resultByUrl.get(url);
     const posted = j["posted_at"] ?? "";
-    const { hours, precise } = ageOf(posted);
+    const { precise } = ageOf(posted);
 
     rows.push({
       url,
@@ -116,7 +114,6 @@ export function loadRows(): DashboardRow[] {
       reason: j["reason"] || "",
       red_flags: (j["red_flags"] || "").split(";").map((f) => f.trim()).filter(Boolean),
       posted_at: posted,
-      age_hours: hours,
       precise_age: precise,
       description: j["description"] || "",
       status: result?.status ?? "pending",
@@ -142,7 +139,6 @@ export function loadRows(): DashboardRow[] {
       reason: "",
       red_flags: [],
       posted_at: "",
-      age_hours: null,
       precise_age: false,
       description: "",
       status: r.status,
@@ -184,8 +180,11 @@ export function summarize(rows: DashboardRow[]): Summary {
     actionable: rows.filter(
       (r) => r.status === "pending" && r.apply_type === "easy_apply" && r.verdict !== "skip"
     ).length,
-    freshUnderDay: rows.filter((r) => r.age_hours !== null && r.age_hours < 24).length,
+    freshUnderDay: rows.filter((r) => {
+      const { hours } = ageOf(r.posted_at);
+      return hours !== null && hours < 24;
+    }).length,
     flagged: rows.filter((r) => r.red_flags.length > 0).length,
-    undated: rows.filter((r) => r.age_hours === null).length,
+    undated: rows.filter((r) => ageOf(r.posted_at).hours === null).length,
   };
 }

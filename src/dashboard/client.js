@@ -21,8 +21,16 @@
     });
   };
 
+  /** Age is derived here, not shipped, so it stays accurate between fetches. */
+  function ageHours(r) {
+    if (!r.posted_at) return null;
+    var t = new Date(r.posted_at).getTime();
+    if (isNaN(t)) return null;
+    return Math.max(0, (Date.now() - t) / 3600000);
+  }
+
   function ageOf(r) {
-    var h = r.age_hours;
+    var h = ageHours(r);
     if (h === null) return { text: "no date", color: COLORS.theme.faint, title: "This source publishes no posting date" };
 
     var mins = Math.floor(h * 60), hours = Math.floor(h), days = Math.floor(h / 24), text;
@@ -47,7 +55,7 @@
   /** Rail opacity is the freshness channel; hue is the source channel. */
   function rail(r) {
     var hue = COLORS.source[r.source] || COLORS.theme.faint;
-    var h = r.age_hours;
+    var h = ageHours(r);
     var o = h === null ? 28 : h < 24 ? 100 : h < 72 ? 80 : h < 168 ? 60 : h < 720 ? 42 : 28;
     return "--rail:color-mix(in srgb, " + hue + " " + o + "%, " + COLORS.theme.ink + ")";
   }
@@ -70,9 +78,8 @@
   var SORTS = {
     // Undated jobs sink rather than pretending to be brand new.
     fresh: function (a, b) {
-      var av = a.age_hours === null ? Infinity : a.age_hours;
-      var bv = b.age_hours === null ? Infinity : b.age_hours;
-      return av - bv;
+      var av = ageHours(a); var bv = ageHours(b);
+      return (av === null ? Infinity : av) - (bv === null ? Infinity : bv);
     },
     fit: function (a, b) { return (parseFloat(b.fit_score) || 0) - (parseFloat(a.fit_score) || 0); },
     company: function (a, b) { return a.company.localeCompare(b.company); },
@@ -114,7 +121,7 @@
     }
 
     var head =
-      '<button class="row' + (r.age_hours !== null && r.age_hours < 24 ? ' hot' : '') + '" style="' + railCss + '" aria-expanded="' + expanded + '" data-url="' + esc(r.url) + '">' +
+      '<button class="row' + (function(){var h=ageHours(r);return h !== null && h < 24 ? ' hot' : '';})() + '" style="' + railCss + '" aria-expanded="' + expanded + '" data-url="' + esc(r.url) + '">' +
         '<span class="l1">' +
           '<span class="t">' + esc(r.title) + "</span>" +
           '<span class="age" style="color:' + a.color + '" title="' + esc(a.title) + '">' + esc(a.text) + "</span>" +
@@ -146,7 +153,7 @@
 
   /** Buckets that make the perishability of a posting structural, not just tinted. */
   function bucketOf(r) {
-    var h = r.age_hours;
+    var h = ageHours(r);
     if (h === null) return "No posting date";
     if (h < 24) return "Today";
     if (h < 72) return "Last 3 days";
@@ -213,7 +220,7 @@
   }
 
   function poll() {
-    fetch("/api/jobs", { cache: "no-store" })
+    fetch("/api/jobs")
       .then(function (r) { return r.json(); })
       .then(function (data) {
         rows = data.rows;

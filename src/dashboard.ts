@@ -2,10 +2,13 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { exec } from "node:child_process";
+import { createHash } from "node:crypto";
 import { loadRows, summarize } from "./dashboard/data";
 import { clientConfig, renderShell } from "./dashboard/render";
 
 const PORT = Number.parseInt(process.env.DASHBOARD_PORT ?? "", 10) || 3000;
+/** Must match the slice the client renders in an expanded row. */
+const DESCRIPTION_LIMIT = 1600;
 // tsc does not copy .js assets into dist, so fall back to the source tree.
 const CLIENT_CANDIDATES = [
   path.resolve(__dirname, "dashboard/client.js"),
@@ -33,11 +36,34 @@ const server = http.createServer((req, res) => {
 
   if (url === "/api/jobs") {
     const rows = loadRows();
+    const summary = summarize(rows);
+
+    // Descriptions were 89% of a 1.3MB payload while the UI renders at most
+    // DESCRIPTION_LIMIT of them, so the rest was shipped 240 times an hour for
+    // nothing. Summarize first, so counts still reflect the full rows.
+    const slim = rows.map((r) =>
+      r.description.length > DESCRIPTION_LIMIT
+        ? { ...r, description: r.description.slice(0, DESCRIPTION_LIMIT) }
+        : r
+    );
+
+    const body = JSON.stringify({ rows: slim, summary });
+    const etag = `"${createHash("sha1").update(body).digest("hex")}"`;
+
+    // The data only changes when discover/apply run, so a poll that finds it
+    // unchanged should cost a 304 rather than a full re-send.
+    if (req.headers["if-none-match"] === etag) {
+      res.writeHead(304, { ETag: etag, "Cache-Control": "no-cache" });
+      res.end();
+      return;
+    }
+
     res.writeHead(200, {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-cache",
+      ETag: etag,
     });
-    res.end(JSON.stringify({ rows, summary: summarize(rows) }));
+    res.end(body);
     return;
   }
 
